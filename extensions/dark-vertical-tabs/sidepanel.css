@@ -1,0 +1,579 @@
+/* ============================================================
+   DARK VERTICAL TABS — NASA WORM EDITION
+   A 1980s NASA-inspired dark vertical tab sidebar
+   ============================================================ */
+
+/* NASA Worm-style font approximation
+   The NASA "worm" logotype (1975-1992) used a custom rounded geometric
+   sans-serif with continuous flowing strokes. We approximate this with
+   Century Gothic / Futura and CSS styling. Drop a .woff2 of the actual
+   Nasalization or NASA worm font into fonts/ and update the @font-face
+   below for the authentic look. */
+
+@font-face {
+  font-family: 'WormFont';
+  src: local('Century Gothic'),
+       local('CenturyGothic'),
+       local('Futura'),
+       local('Futura-Medium'),
+       local('Arial Rounded MT Bold');
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  /* Deep space palette */
+  --bg-void: #06080F;
+  --bg-deep: #0B0E17;
+  --bg-surface: #111627;
+  --bg-elevated: #182040;
+  --bg-hover: #1E2A52;
+  --bg-active: #1A1230;
+
+  /* NASA worm red + accents */
+  --worm-red: #FC3D21;
+  --worm-red-glow: rgba(252, 61, 33, 0.35);
+  --worm-red-subtle: rgba(252, 61, 33, 0.12);
+  --worm-blue: #0B3D91;
+  --worm-blue-glow: rgba(11, 61, 145, 0.3);
+
+  /* Text */
+  --text-primary: #E8EAF0;
+  --text-secondary: #8890A8;
+  --text-muted: #505878;
+  --text-accent: #FC3D21;
+
+  /* Borders & dividers */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-accent: rgba(252, 61, 33, 0.3);
+
+  /* Dimensions */
+  --sidebar-collapsed: 52px;
+  --sidebar-expanded: 52px;
+  --tab-size: 36px;
+  --tab-radius: 50%;
+  --tab-expanded-radius: 18px;
+  --transition-speed: 280ms;
+  --transition-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ---- Reset & Base ---- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: 'WormFont', 'Century Gothic', 'Futura', 'Avant Garde', 'Gill Sans', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* ---- Sidebar Container ---- */
+#tab-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  background: var(--bg-deep);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Scanline overlay for retro CRT feel */
+#tab-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ---- Header ---- */
+#sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  position: relative;
+}
+
+#logo-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--worm-red);
+  box-shadow: 0 0 12px var(--worm-red-glow), 0 0 4px var(--worm-red-glow);
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* Inner ring detail */
+#logo-mark::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+}
+
+#header-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+#new-tab-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-speed) var(--transition-ease);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+#new-tab-btn:hover {
+  background: var(--worm-red);
+  border-color: var(--worm-red);
+  color: white;
+  box-shadow: 0 0 12px var(--worm-red-glow);
+  transform: rotate(90deg);
+}
+
+/* ---- Search ---- */
+#search-container {
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
+#tab-search {
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  outline: none;
+  transition: all var(--transition-speed) var(--transition-ease);
+}
+
+#tab-search::placeholder {
+  color: var(--text-muted);
+  letter-spacing: 0.2em;
+}
+
+#tab-search:focus {
+  border-color: var(--worm-red);
+  box-shadow: 0 0 8px var(--worm-red-subtle);
+  background: var(--bg-elevated);
+}
+
+/* ---- Tab List ---- */
+#tab-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ---- Tab Item ---- */
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px;
+  border-radius: var(--tab-size);
+  cursor: pointer;
+  transition: all var(--transition-speed) var(--transition-ease);
+  position: relative;
+  min-height: calc(var(--tab-size) + 8px);
+  overflow: hidden;
+  text-decoration: none;
+  user-select: none;
+}
+
+.tab-item:hover {
+  background: var(--bg-hover);
+  gap: 10px;
+  padding-right: 8px;
+}
+
+.tab-item.active {
+  background: var(--bg-active);
+  box-shadow: inset 0 0 0 1px var(--border-accent),
+              0 0 20px var(--worm-red-subtle);
+}
+
+.tab-item.active .tab-favicon-ring {
+  border-color: var(--worm-red);
+  box-shadow: 0 0 10px var(--worm-red-glow);
+}
+
+/* ---- Favicon Circle ---- */
+.tab-favicon-container {
+  width: var(--tab-size);
+  height: var(--tab-size);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.tab-favicon-ring {
+  width: var(--tab-size);
+  height: var(--tab-size);
+  border-radius: 50%;
+  border: 2px solid var(--bg-elevated);
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all var(--transition-speed) var(--transition-ease);
+  position: relative;
+}
+
+.tab-favicon-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.tab-item:hover .tab-favicon-ring {
+  border-color: var(--text-muted);
+}
+
+.tab-favicon {
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  object-fit: contain;
+  image-rendering: auto;
+  flex-shrink: 0;
+}
+
+/* Fallback icon for tabs without favicons */
+.tab-favicon-fallback {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+/* ---- Tab Info (hidden by default, revealed on hover) ---- */
+.tab-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transition: all var(--transition-speed) var(--transition-ease);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tab-item:hover .tab-info {
+  max-width: 300px;
+  opacity: 1;
+}
+
+.tab-title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-item.active .tab-title {
+  color: var(--worm-red);
+}
+
+.tab-url {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Close Button ---- */
+.tab-close {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all var(--transition-speed) var(--transition-ease);
+  font-family: inherit;
+  line-height: 1;
+}
+
+.tab-item:hover .tab-close {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.tab-close:hover {
+  background: var(--worm-red);
+  color: white;
+  box-shadow: 0 0 8px var(--worm-red-glow);
+}
+
+/* ---- Loading Indicator ---- */
+.tab-item.loading .tab-favicon-ring {
+  border-color: var(--worm-red);
+  animation: pulse-ring 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--worm-red-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+/* ---- Audio Playing Indicator ---- */
+.tab-item.audible .tab-favicon-ring::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--worm-red);
+  border: 2px solid var(--bg-deep);
+  animation: audio-pulse 1s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes audio-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+/* ---- Pinned Tab ---- */
+.tab-item.pinned .tab-favicon-ring {
+  border-color: var(--worm-blue);
+  box-shadow: 0 0 8px var(--worm-blue-glow);
+}
+
+.tab-item.pinned .tab-favicon-ring::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--worm-blue);
+  border: 1.5px solid var(--bg-deep);
+  z-index: 2;
+}
+
+/* ---- Group Separator ---- */
+.tab-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  margin-top: 4px;
+}
+
+.tab-group-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab-group-name {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---- Footer ---- */
+#sidebar-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+#tab-count {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ---- Drag Feedback ---- */
+.tab-item.dragging {
+  opacity: 0.4;
+}
+
+.tab-item.drag-over {
+  border-top: 2px solid var(--worm-red);
+  margin-top: -2px;
+}
+
+/* ---- Empty State ---- */
+#tab-list:empty::after {
+  content: 'NO TABS OPEN';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  color: var(--text-muted);
+}
+
+/* ---- Ambient Background Glow ---- */
+#tab-sidebar::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    ellipse at 20% 10%,
+    rgba(252, 61, 33, 0.03) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+#tab-sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Context Menu ---- */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  font-family: inherit;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-speed) var(--transition-ease);
+}
+
+.context-menu-item:hover {
+  background: var(--worm-red-subtle);
+  color: var(--worm-red);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 0;
+}
