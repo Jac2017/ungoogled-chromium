@@ -1,10 +1,11 @@
 """
 Dark Vertical Tabs Browser — NASA Worm Edition
-A standalone Windows desktop browser with a dark vertical tab sidebar,
+A standalone desktop browser with a dark vertical tab sidebar,
 circular favicon indicators that expand on hover, and 1980s NASA worm
 logotype-inspired typography throughout.
 
-Build with:  pyinstaller --onefile --noconsole --name DarkVerticalTabs browser.py
+Windows:  pyinstaller --onefile --noconsole --name DarkVerticalTabs browser.py
+macOS:    python3 build_macos.py   (produces DarkVerticalTabs.dmg)
 """
 
 import sys
@@ -597,6 +598,13 @@ class BrowserWindow(QMainWindow):
 
         main_layout.addWidget(right_panel)
 
+        # Platform-aware keyboard shortcuts
+        self._setup_shortcuts()
+
+        # macOS: native menu bar with standard items
+        if sys.platform == "darwin":
+            self._setup_macos_menu()
+
         # Open initial tab
         self._add_tab("https://start.duckduckgo.com")
 
@@ -712,32 +720,77 @@ class BrowserWindow(QMainWindow):
         if idx < len(self._tabs) and self._tabs[idx][1].url() == url:
             self._toolbar.url_bar.setText(url.toString())
 
-    def keyPressEvent(self, event):
-        # Ctrl+T: new tab
-        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            if event.key() == Qt.Key.Key_T:
-                self._add_tab("https://start.duckduckgo.com")
-                return
-            if event.key() == Qt.Key.Key_W:
-                self._close_tab(self._get_active_index())
-                return
-            if event.key() == Qt.Key.Key_L:
-                self._toolbar.url_bar.setFocus()
-                self._toolbar.url_bar.selectAll()
-                return
-            if event.key() == Qt.Key.Key_R:
-                self._reload()
-                return
-        super().keyPressEvent(event)
+    def _setup_shortcuts(self):
+        """Platform-aware keyboard shortcuts (Cmd on macOS, Ctrl elsewhere)."""
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence.StandardKey.AddTab, self,
+                  lambda: self._add_tab("https://start.duckduckgo.com"))
+        QShortcut(QKeySequence.StandardKey.Close, self,
+                  lambda: self._close_tab(self._get_active_index()))
+        QShortcut(QKeySequence("Ctrl+L"), self,
+                  lambda: (self._toolbar.url_bar.setFocus(),
+                           self._toolbar.url_bar.selectAll()))
+        QShortcut(QKeySequence.StandardKey.Refresh, self, self._reload)
+        # Cmd+Shift+] / Cmd+Shift+[ for tab cycling (macOS convention)
+        QShortcut(QKeySequence("Ctrl+Tab"), self, self._next_tab)
+        QShortcut(QKeySequence("Ctrl+Shift+Tab"), self, self._prev_tab)
+
+    def _next_tab(self):
+        idx = self._get_active_index()
+        self._activate_tab((idx + 1) % len(self._tabs))
+
+    def _prev_tab(self):
+        idx = self._get_active_index()
+        self._activate_tab((idx - 1) % len(self._tabs))
+
+    def _setup_macos_menu(self):
+        """Create a native macOS menu bar with standard items."""
+        menu_bar = self.menuBar()
+        menu_bar.setNativeMenuBar(True)
+
+        # File menu
+        file_menu = menu_bar.addMenu("File")
+        file_menu.addAction("New Tab", lambda: self._add_tab(
+            "https://start.duckduckgo.com"), "Ctrl+T")
+        file_menu.addAction("Close Tab", lambda: self._close_tab(
+            self._get_active_index()), "Ctrl+W")
+        file_menu.addSeparator()
+        file_menu.addAction("Quit", QApplication.quit, "Ctrl+Q")
+
+        # Edit menu (for standard Cmd+C/V/X/A)
+        edit_menu = menu_bar.addMenu("Edit")
+        edit_menu.addAction("Cut", lambda: None, "Ctrl+X")
+        edit_menu.addAction("Copy", lambda: None, "Ctrl+C")
+        edit_menu.addAction("Paste", lambda: None, "Ctrl+V")
+        edit_menu.addAction("Select All", lambda: None, "Ctrl+A")
+
+        # View menu
+        view_menu = menu_bar.addMenu("View")
+        view_menu.addAction("Reload", self._reload, "Ctrl+R")
+        view_menu.addAction("Next Tab", self._next_tab, "Ctrl+}")
+        view_menu.addAction("Previous Tab", self._prev_tab, "Ctrl+{")
 
 
 # ====================================================================
 # Entry point
 # ====================================================================
 def main():
+    # macOS: must be set before QApplication is created
+    if sys.platform == "darwin":
+        os.environ.setdefault("QT_MAC_WANTS_LAYER", "1")
+        # Enable retina / high-DPI rendering
+        QApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+
     app = QApplication(sys.argv)
     app.setApplicationName("DarkVerticalTabs")
     app.setApplicationDisplayName("Dark Vertical Tabs — NASA Worm Edition")
+
+    if sys.platform == "darwin":
+        app.setOrganizationName("NASAWormEdition")
+        app.setOrganizationDomain("darkverticaltabs.app")
+        # macOS dark appearance
+        app.setStyle("macOS")
 
     # Set app-wide dark palette
     from PySide6.QtGui import QPalette
