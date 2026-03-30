@@ -1,0 +1,752 @@
+# Dark Vertical Tabs — NASA Worm Edition
+# Native C++ vertical tab sidebar with circular favicon indicators,
+# hover-to-expand tab names, deep space dark theme, and 1980s NASA
+# worm logotype-inspired typography. Toggled via chrome://flags.
+
+--- /dev/null
++++ b/chrome/browser/ui/views/tabs/vertical_tab_strip.h
+@@ -0,0 +1,82 @@
++// Copyright 2024 The ungoogled-chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_TAB_STRIP_H_
++#define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_TAB_STRIP_H_
++
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
++#include "ui/gfx/animation/animation_delegate.h"
++#include "ui/gfx/animation/slide_animation.h"
++#include "ui/views/view.h"
++
++class Browser;
++class TabStripModel;
++
++namespace content {
++class WebContents;
++}
++
++namespace views {
++class Label;
++class ScrollView;
++}  // namespace views
++
++// VerticalTabStrip provides a dark-themed vertical tab sidebar with circular
++// favicon indicators that expand on hover to reveal tab titles. Styled after
++// the 1980s NASA "worm" logotype aesthetic: geometric rounded sans-serif,
++// wide letter-spacing, deep-space dark palette with NASA worm red accents.
++class VerticalTabStrip : public views::View,
++                         public TabStripModelObserver,
++                         public gfx::AnimationDelegate {
++  METADATA_HEADER(VerticalTabStrip, views::View)
++
++ public:
++  explicit VerticalTabStrip(Browser* browser);
++  ~VerticalTabStrip() override;
++
++  VerticalTabStrip(const VerticalTabStrip&) = delete;
++  VerticalTabStrip& operator=(const VerticalTabStrip&) = delete;
++
++  static constexpr int kCollapsedWidth = 52;
++  static constexpr int kExpandedWidth = 260;
++
++  // Returns the current animated width between collapsed and expanded.
++  int GetCurrentWidth() const;
++
++  // views::View:
++  gfx::Size CalculatePreferredSize(
++      const views::SizeBounds& available_size) const override;
++  void OnPaint(gfx::Canvas* canvas) override;
++  void OnMouseEntered(const ui::MouseEvent& event) override;
++  void OnMouseExited(const ui::MouseEvent& event) override;
++  bool OnMousePressed(const ui::MouseEvent& event) override;
++  void Layout(PassKey) override;
++
++  // TabStripModelObserver:
++  void OnTabStripModelChanged(
++      TabStripModel* tab_strip_model,
++      const TabStripModelChange& change,
++      const TabStripSelectionChange& selection) override;
++  void TabChangedAt(content::WebContents* contents,
++                    int model_index,
++                    TabChangeType change_type) override;
++
++  // gfx::AnimationDelegate:
++  void AnimationProgressed(const gfx::Animation* animation) override;
++  void AnimationEnded(const gfx::Animation* animation) override;
++
++ private:
++  class TabItem;
++
++  void RebuildTabList();
++
++  raw_ptr<Browser> browser_;
++  raw_ptr<TabStripModel> model_;
++  raw_ptr<views::ScrollView> scroll_view_ = nullptr;
++  raw_ptr<views::View> tab_container_ = nullptr;
++  raw_ptr<views::Label> tab_count_label_ = nullptr;
++
++  gfx::SlideAnimation expand_animation_{this};
++  bool is_expanded_ = false;
++
++  std::vector<raw_ptr<TabItem>> tab_items_;
++};
++
++#endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_TAB_STRIP_H_
+--- /dev/null
++++ b/chrome/browser/ui/views/tabs/vertical_tab_strip.cc
+@@ -0,0 +1,439 @@
++// Copyright 2024 The ungoogled-chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/views/tabs/vertical_tab_strip.h"
++
++#include <algorithm>
++
++#include "base/strings/string_number_conversions.h"
++#include "build/build_config.h"
++#include "cc/paint/paint_flags.h"
++#include "chrome/browser/favicon/favicon_utils.h"
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "content/public/browser/web_contents.h"
++#include "skia/ext/image_operations.h"
++#include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/gfx/animation/tween.h"
++#include "ui/gfx/canvas.h"
++#include "ui/gfx/font_list.h"
++#include "ui/gfx/geometry/point_f.h"
++#include "ui/gfx/geometry/rect_f.h"
++#include "ui/gfx/image/image_skia_operations.h"
++#include "ui/views/controls/label.h"
++#include "ui/views/controls/scroll_view.h"
++#include "ui/views/layout/box_layout.h"
++
++namespace {
++
++// ==================================================================
++// NASA Worm Dark Theme Palette
++// Deep space background with the iconic NASA worm red (#FC3D21).
++// ==================================================================
++constexpr SkColor kBgDeep = SkColorSetRGB(0x0B, 0x0E, 0x17);
++constexpr SkColor kBgSurface = SkColorSetRGB(0x11, 0x16, 0x27);
++constexpr SkColor kBgHover = SkColorSetRGB(0x1E, 0x2A, 0x52);
++constexpr SkColor kBgActive = SkColorSetRGB(0x1A, 0x12, 0x30);
++
++constexpr SkColor kWormRed = SkColorSetRGB(0xFC, 0x3D, 0x21);
++constexpr SkColor kWormRedGlow = SkColorSetARGB(0x59, 0xFC, 0x3D, 0x21);
++constexpr SkColor kWormRedSubtle = SkColorSetARGB(0x1F, 0xFC, 0x3D, 0x21);
++
++constexpr SkColor kTextPrimary = SkColorSetRGB(0xE8, 0xEA, 0xF0);
++constexpr SkColor kTextSecondary = SkColorSetRGB(0x88, 0x90, 0xA8);
++constexpr SkColor kTextMuted = SkColorSetRGB(0x50, 0x58, 0x78);
++
++constexpr SkColor kRingDefault = SkColorSetRGB(0x18, 0x20, 0x40);
++constexpr SkColor kBorderSubtle = SkColorSetARGB(0x0F, 0xFF, 0xFF, 0xFF);
++
++// ==================================================================
++// Dimensions
++// ==================================================================
++constexpr int kItemHeight = 44;
++constexpr int kFaviconRingSize = 36;
++constexpr int kFaviconIconSize = 18;
++constexpr int kItemPadding = 4;
++constexpr int kHeaderHeight = 48;
++constexpr int kFooterHeight = 36;
++constexpr int kNewTabBtnSize = 28;
++
++// ==================================================================
++// Font — NASA worm logotype approximation
++// The 1975-1992 NASA worm used a custom rounded geometric sans-serif.
++// Century Gothic (Windows) and Futura (macOS) are the closest widely
++// installed typefaces.  We also apply wide letter-spacing via manual
++// space insertion in header text to emulate the worm's characteristic
++// airy tracking.
++// ==================================================================
++#if BUILDFLAG(IS_WIN)
++const char kWormFontName[] = "Century Gothic";
++const char kWormFontFallback[] = "Segoe UI";
++#elif BUILDFLAG(IS_MAC)
++const char kWormFontName[] = "Futura";
++const char kWormFontFallback[] = "Helvetica Neue";
++#else
++const char kWormFontName[] = "URW Gothic";
++const char kWormFontFallback[] = "Liberation Sans";
++#endif
++
++gfx::FontList WormFont(int size_px,
++                       gfx::Font::Weight weight = gfx::Font::Weight::MEDIUM) {
++  std::string spec = std::string(kWormFontName) + ", " +
++                     std::string(kWormFontFallback) + ", sans-serif";
++  return gfx::FontList({spec}, gfx::Font::NORMAL, size_px, weight);
++}
++
++}  // namespace
++
++// ==================================================================
++// VerticalTabStrip::TabItem — a single tab in the sidebar
++// ==================================================================
++class VerticalTabStrip::TabItem : public views::View {
++ public:
++  TabItem(VerticalTabStrip* sidebar, int index)
++      : sidebar_(sidebar), tab_index_(index) {
++    Update();
++  }
++
++  void set_tab_index(int i) { tab_index_ = i; }
++  int tab_index() const { return tab_index_; }
++
++  void Update() {
++    if (tab_index_ < 0 || tab_index_ >= sidebar_->model_->count())
++      return;
++    auto* contents = sidebar_->model_->GetWebContentsAt(tab_index_);
++    if (!contents)
++      return;
++    title_ = contents->GetTitle();
++    if (title_.empty())
++      title_ = u"New Tab";
++    is_loading_ = contents->IsLoading();
++    is_active_ = (contents == sidebar_->model_->GetActiveWebContents());
++    favicon_ = favicon::TabFaviconFromWebContents(contents);
++    SchedulePaint();
++  }
++
++  // views::View:
++  gfx::Size CalculatePreferredSize(
++      const views::SizeBounds& /*available_size*/) const override {
++    return gfx::Size(sidebar_->GetCurrentWidth() - 16, kItemHeight);
++  }
++
++  void OnPaint(gfx::Canvas* canvas) override {
++    const gfx::Rect bounds = GetLocalBounds();
++    const bool expanded = sidebar_->is_expanded_;
++    const float radius = kItemHeight / 2.0f;
++
++    // ---- Background ----
++    cc::PaintFlags bg;
++    bg.setAntiAlias(true);
++    if (is_active_) {
++      bg.setColor(kBgActive);
++    } else if (is_hovered_) {
++      bg.setColor(kBgHover);
++    } else {
++      bg.setColor(SK_ColorTRANSPARENT);
++    }
++    canvas->DrawRoundRect(bounds, radius, bg);
++
++    // ---- Active glow border ----
++    if (is_active_) {
++      cc::PaintFlags glow;
++      glow.setColor(kWormRedSubtle);
++      glow.setStyle(cc::PaintFlags::kStroke_Style);
++      glow.setStrokeWidth(1.5f);
++      glow.setAntiAlias(true);
++      gfx::RectF r(bounds);
++      r.Inset(1.0f);
++      canvas->DrawRoundRect(r, radius - 1, glow);
++    }
++
++    // ---- Favicon ring ----
++    const int fx = kItemPadding;
++    const int fy = (kItemHeight - kFaviconRingSize) / 2;
++    const gfx::PointF center(fx + kFaviconRingSize / 2.0f,
++                             fy + kFaviconRingSize / 2.0f);
++
++    // Outer ring stroke
++    cc::PaintFlags ring;
++    ring.setStyle(cc::PaintFlags::kStroke_Style);
++    ring.setStrokeWidth(2.0f);
++    ring.setAntiAlias(true);
++    ring.setColor(is_active_ ? kWormRed
++                             : (is_hovered_ ? kTextMuted : kRingDefault));
++    canvas->DrawCircle(center, kFaviconRingSize / 2.0f - 1, ring);
++
++    // Inner fill
++    cc::PaintFlags fill;
++    fill.setColor(kBgSurface);
++    fill.setAntiAlias(true);
++    canvas->DrawCircle(center, kFaviconRingSize / 2.0f - 2.5f, fill);
++
++    // Favicon image or fallback letter
++    if (!favicon_.isNull()) {
++      gfx::ImageSkia sized = gfx::ImageSkiaOperations::CreateResizedImage(
++          favicon_, skia::ImageOperations::RESIZE_BEST,
++          gfx::Size(kFaviconIconSize, kFaviconIconSize));
++      int ix = fx + (kFaviconRingSize - kFaviconIconSize) / 2;
++      int iy = fy + (kFaviconRingSize - kFaviconIconSize) / 2;
++      canvas->DrawImageInt(sized, ix, iy);
++    } else {
++      std::u16string letter = title_.substr(0, 1);
++      gfx::FontList font = WormFont(11, gfx::Font::Weight::BOLD);
++      gfx::Rect lr(fx, fy, kFaviconRingSize, kFaviconRingSize);
++      canvas->DrawStringRectWithFlags(letter, font, kTextSecondary, lr,
++                                      gfx::Canvas::TEXT_ALIGN_CENTER);
++    }
++
++    // ---- Tab title (only when sidebar is expanded) ----
++    if (expanded) {
++      const int text_x = fx + kFaviconRingSize + 10;
++      const int text_w = bounds.width() - text_x - 28;
++      if (text_w > 0) {
++        gfx::Rect tr(text_x, 0, text_w, bounds.height());
++        gfx::FontList tf = WormFont(11);
++        SkColor tc = is_active_ ? kWormRed : kTextPrimary;
++        canvas->DrawStringRectWithFlags(
++            title_, tf, tc, tr,
++            gfx::Canvas::TEXT_ALIGN_LEFT |
++                gfx::Canvas::NO_SUBPIXEL_RENDERING);
++
++        // Close button on hover
++        if (is_hovered_) {
++          int cx = bounds.right() - 24;
++          int cy = (bounds.height() - 20) / 2;
++          gfx::Rect cr(cx, cy, 20, 20);
++          cc::PaintFlags cbg;
++          cbg.setAntiAlias(true);
++          cbg.setColor(close_hovered_ ? kWormRed : SK_ColorTRANSPARENT);
++          canvas->DrawCircle(gfx::PointF(cr.CenterPoint()), 10, cbg);
++          SkColor cc_color = close_hovered_ ? SK_ColorWHITE : kTextMuted;
++          canvas->DrawStringRectWithFlags(u"\u00D7", WormFont(13), cc_color,
++                                          cr, gfx::Canvas::TEXT_ALIGN_CENTER);
++        }
++      }
++    }
++
++    // ---- Loading pulse ring ----
++    if (is_loading_) {
++      cc::PaintFlags lf;
++      lf.setColor(kWormRedGlow);
++      lf.setStyle(cc::PaintFlags::kStroke_Style);
++      lf.setStrokeWidth(2.0f);
++      lf.setAntiAlias(true);
++      canvas->DrawCircle(center, kFaviconRingSize / 2.0f + 2, lf);
++    }
++  }
++
++  void OnMouseEntered(const ui::MouseEvent& /*event*/) override {
++    is_hovered_ = true;
++    SchedulePaint();
++  }
++
++  void OnMouseExited(const ui::MouseEvent& /*event*/) override {
++    is_hovered_ = false;
++    close_hovered_ = false;
++    SchedulePaint();
++  }
++
++  void OnMouseMoved(const ui::MouseEvent& event) override {
++    if (sidebar_->is_expanded_ && is_hovered_) {
++      int cx = GetLocalBounds().right() - 24;
++      int cy = (GetLocalBounds().height() - 20) / 2;
++      gfx::Rect cr(cx, cy, 20, 20);
++      bool was = close_hovered_;
++      close_hovered_ = cr.Contains(event.location());
++      if (was != close_hovered_)
++        SchedulePaint();
++    }
++  }
++
++  bool OnMousePressed(const ui::MouseEvent& event) override {
++    if (event.IsLeftMouseButton()) {
++      if (close_hovered_ && sidebar_->is_expanded_) {
++        sidebar_->model_->CloseWebContentsAt(
++            tab_index_, TabCloseTypes::CLOSE_USER_GESTURE);
++        return true;
++      }
++      sidebar_->model_->ActivateTabAt(tab_index_);
++      return true;
++    }
++    // Middle-click to close
++    if (event.IsMiddleMouseButton()) {
++      sidebar_->model_->CloseWebContentsAt(
++          tab_index_, TabCloseTypes::CLOSE_USER_GESTURE);
++      return true;
++    }
++    return false;
++  }
++
++ private:
++  raw_ptr<VerticalTabStrip> sidebar_;
++  int tab_index_;
++  std::u16string title_;
++  gfx::ImageSkia favicon_;
++  bool is_active_ = false;
++  bool is_loading_ = false;
++  bool is_hovered_ = false;
++  bool close_hovered_ = false;
++};
++
++// ==================================================================
++// VerticalTabStrip — the sidebar container
++// ==================================================================
++
++BEGIN_METADATA(VerticalTabStrip)
++END_METADATA
++
++VerticalTabStrip::VerticalTabStrip(Browser* browser)
++    : browser_(browser), model_(browser->tab_strip_model()) {
++  expand_animation_.SetSlideDuration(base::Milliseconds(250));
++  expand_animation_.SetTweenType(gfx::Tween::EASE_OUT);
++
++  model_->AddObserver(this);
++
++  // Scroll view for the tab list
++  auto scroll = std::make_unique<views::ScrollView>();
++  scroll->SetBackgroundColor(std::nullopt);
++  scroll->SetHorizontalScrollBarMode(
++      views::ScrollView::ScrollBarMode::kDisabled);
++  scroll->SetDrawOverflowIndicator(false);
++
++  auto container = std::make_unique<views::View>();
++  container->SetLayoutManager(std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kVertical, gfx::Insets(0), 2));
++  tab_container_ = container.get();
++  scroll->SetContents(std::move(container));
++  scroll_view_ = AddChildView(std::move(scroll));
++
++  // Tab count label in footer
++  auto label = std::make_unique<views::Label>(
++      u"0  T A B S", WormFont(9, gfx::Font::Weight::MEDIUM));
++  label->SetEnabledColor(kTextMuted);
++  label->SetHorizontalAlignment(gfx::ALIGN_CENTER);
++  tab_count_label_ = AddChildView(std::move(label));
++
++  RebuildTabList();
++}
++
++VerticalTabStrip::~VerticalTabStrip() {
++  model_->RemoveObserver(this);
++}
++
++int VerticalTabStrip::GetCurrentWidth() const {
++  double t = expand_animation_.GetCurrentValue();
++  return kCollapsedWidth +
++         static_cast<int>((kExpandedWidth - kCollapsedWidth) * t);
++}
++
++gfx::Size VerticalTabStrip::CalculatePreferredSize(
++    const views::SizeBounds& /*available_size*/) const {
++  return gfx::Size(GetCurrentWidth(), 0);
++}
++
++void VerticalTabStrip::OnPaint(gfx::Canvas* canvas) {
++  const gfx::Rect b = GetLocalBounds();
++
++  // Deep-space background
++  cc::PaintFlags bg;
++  bg.setColor(kBgDeep);
++  canvas->DrawRect(b, bg);
++
++  // Right-edge border
++  cc::PaintFlags border;
++  border.setColor(kBorderSubtle);
++  canvas->DrawLine(gfx::PointF(b.right() - 1, 0),
++                   gfx::PointF(b.right() - 1, b.bottom()), border);
++
++  // Header separator
++  canvas->DrawLine(gfx::PointF(0, kHeaderHeight),
++                   gfx::PointF(b.right(), kHeaderHeight), border);
++
++  // NASA worm red dot (logo mark)
++  cc::PaintFlags dot;
++  dot.setColor(kWormRed);
++  dot.setAntiAlias(true);
++  gfx::PointF dot_c(20, kHeaderHeight / 2.0f);
++  canvas->DrawCircle(dot_c, 8, dot);
++
++  // Inner ring on the logo dot
++  cc::PaintFlags ir;
++  ir.setColor(SkColorSetARGB(0x4D, 0xFF, 0xFF, 0xFF));
++  ir.setStyle(cc::PaintFlags::kStroke_Style);
++  ir.setStrokeWidth(1.5f);
++  ir.setAntiAlias(true);
++  canvas->DrawCircle(dot_c, 5, ir);
++
++  // Header title — wide letter-spacing worm style (only when expanded)
++  double alpha = expand_animation_.GetCurrentValue();
++  if (alpha > 0.3) {
++    U8CPU a = static_cast<U8CPU>(255 * std::min(1.0, (alpha - 0.3) / 0.7));
++    SkColor tc = SkColorSetA(kTextPrimary, a);
++    gfx::Rect tr(36, 0, b.width() - 72, kHeaderHeight);
++    canvas->DrawStringRectWithFlags(
++        u"T  A  B  S", WormFont(12, gfx::Font::Weight::BOLD), tc, tr,
++        gfx::Canvas::TEXT_ALIGN_LEFT | gfx::Canvas::NO_SUBPIXEL_RENDERING);
++  }
++
++  // New-tab button (+)
++  int bx = b.right() - kNewTabBtnSize - 8;
++  int by = (kHeaderHeight - kNewTabBtnSize) / 2;
++  gfx::Rect br(bx, by, kNewTabBtnSize, kNewTabBtnSize);
++  cc::PaintFlags bbg;
++  bbg.setColor(kBgSurface);
++  bbg.setAntiAlias(true);
++  canvas->DrawCircle(gfx::PointF(br.CenterPoint()),
++                     kNewTabBtnSize / 2.0f, bbg);
++  cc::PaintFlags bbr;
++  bbr.setColor(kBorderSubtle);
++  bbr.setStyle(cc::PaintFlags::kStroke_Style);
++  bbr.setStrokeWidth(1.0f);
++  bbr.setAntiAlias(true);
++  canvas->DrawCircle(gfx::PointF(br.CenterPoint()),
++                     kNewTabBtnSize / 2.0f, bbr);
++  canvas->DrawStringRectWithFlags(u"+", WormFont(16), kTextSecondary, br,
++                                  gfx::Canvas::TEXT_ALIGN_CENTER);
++
++  // Footer separator
++  int fy = b.bottom() - kFooterHeight;
++  canvas->DrawLine(gfx::PointF(0, fy),
++                   gfx::PointF(b.right(), fy), border);
++
++  // CRT scanline overlay (subtle retro feel)
++  cc::PaintFlags scan;
++  scan.setColor(SkColorSetARGB(0x05, 0x00, 0x00, 0x00));
++  for (int y = 0; y < b.height(); y += 4)
++    canvas->DrawRect(gfx::Rect(0, y, b.width(), 2), scan);
++}
++
++void VerticalTabStrip::OnMouseEntered(const ui::MouseEvent& /*event*/) {
++  is_expanded_ = true;
++  expand_animation_.Show();
++}
++
++void VerticalTabStrip::OnMouseExited(const ui::MouseEvent& /*event*/) {
++  is_expanded_ = false;
++  expand_animation_.Hide();
++}
++
++bool VerticalTabStrip::OnMousePressed(const ui::MouseEvent& event) {
++  if (event.IsLeftMouseButton()) {
++    // New-tab button hit-test
++    int bx = GetLocalBounds().right() - kNewTabBtnSize - 8;
++    int by = (kHeaderHeight - kNewTabBtnSize) / 2;
++    gfx::Rect br(bx, by, kNewTabBtnSize, kNewTabBtnSize);
++    if (br.Contains(event.location())) {
++      chrome::NewTab(browser_);
++      return true;
++    }
++  }
++  return false;
++}
++
++void VerticalTabStrip::Layout(PassKey) {
++  const gfx::Rect b = GetLocalBounds();
++  const int w = GetCurrentWidth();
++
++  int scroll_top = kHeaderHeight + 4;
++  int scroll_h = std::max(0, b.bottom() - kFooterHeight - scroll_top);
++  if (scroll_view_)
++    scroll_view_->SetBounds(4, scroll_top, w - 8, scroll_h);
++  if (tab_count_label_)
++    tab_count_label_->SetBounds(0, b.bottom() - kFooterHeight, w, kFooterHeight);
++}
++
++// ---- TabStripModelObserver ----
++
++void VerticalTabStrip::OnTabStripModelChanged(
++    TabStripModel* /*tab_strip_model*/,
++    const TabStripModelChange& /*change*/,
++    const TabStripSelectionChange& /*selection*/) {
++  RebuildTabList();
++}
++
++void VerticalTabStrip::TabChangedAt(content::WebContents* /*contents*/,
++                                    int model_index,
++                                    TabChangeType /*change_type*/) {
++  if (model_index >= 0 &&
++      model_index < static_cast<int>(tab_items_.size())) {
++    tab_items_[model_index]->Update();
++  }
++}
++
++// ---- Animation ----
++
++void VerticalTabStrip::AnimationProgressed(const gfx::Animation* /*anim*/) {
++  PreferredSizeChanged();
++  SchedulePaint();
++  for (auto* item : tab_items_)
++    item->PreferredSizeChanged();
++}
++
++void VerticalTabStrip::AnimationEnded(const gfx::Animation* anim) {
++  AnimationProgressed(anim);
++}
++
++// ---- Tab list management ----
++
++void VerticalTabStrip::RebuildTabList() {
++  tab_items_.clear();
++  if (tab_container_)
++    tab_container_->RemoveAllChildViews();
++
++  const int count = model_->count();
++  for (int i = 0; i < count; ++i) {
++    auto item = std::make_unique<TabItem>(this, i);
++    tab_items_.push_back(item.get());
++    tab_container_->AddChildView(std::move(item));
++  }
++
++  // Update footer count — worm style wide spacing
++  std::u16string n = base::NumberToString16(count);
++  std::u16string label = count == 1 ? u"  T A B" : u"  T A B S";
++  if (tab_count_label_)
++    tab_count_label_->SetText(n + label);
++
++  InvalidateLayout();
++  SchedulePaint();
++}
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -11,6 +11,7 @@
+ #include <string>
+ #include <vector>
+
++#include "base/command_line.h"
+ #include "base/functional/callback_forward.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/memory/raw_ptr.h"
+@@ -74,6 +75,7 @@ class TabStripRegionView;
+ class TopContainerView;
+ class TopControlsSlideController;
+ class WebUITabStripContainerView;
++class VerticalTabStrip;
+
+ namespace views {
+ class ExternalFocusTracker;
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -113,6 +113,7 @@
+ #include "base/auto_reset.h"
+ #include "base/command_line.h"
+ #include "base/containers/contains.h"
++#include "chrome/browser/ui/views/tabs/vertical_tab_strip.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/i18n/rtl.h"
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1645,6 +1645,18 @@ void BrowserView::CreateBrowserViewLayou
+   browser_view_layout->set_contents_container(contents_container_);
+   browser_view_layout->set_download_shelf(download_shelf_.get());
+
++  // ---- Dark Vertical Tabs sidebar ----
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("dark-vertical-tabs")) {
++    auto vertical_tabs =
++        std::make_unique<VerticalTabStrip>(browser_.get());
++    vertical_tab_strip_ = vertical_tabs.get();
++    // Add as a child of BrowserView so BrowserViewLayout can position it.
++    AddChildView(std::move(vertical_tabs));
++    browser_view_layout->set_vertical_tab_strip(vertical_tab_strip_);
++  }
++
+   SetLayoutManager(std::move(layout));
+
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -783,6 +783,9 @@ class BrowserView : public BrowserWindow
+   raw_ptr<views::View> contents_container_ = nullptr;
+   raw_ptr<views::View> devtools_web_view_ = nullptr;
+
++  // Dark vertical tab sidebar (nullptr if flag not set).
++  raw_ptr<VerticalTabStrip> vertical_tab_strip_ = nullptr;
++
+   // The Unified Side Panel
+   raw_ptr<views::View> right_aligned_side_panel_ = nullptr;
+
+--- a/chrome/browser/ui/views/frame/browser_view_layout.h
++++ b/chrome/browser/ui/views/frame/browser_view_layout.h
+@@ -65,6 +65,9 @@ class BrowserViewLayout : public views::
+   void set_tab_strip_region_view(
+       TabStripRegionView* tab_strip_region_view) {
+     tab_strip_region_view_ = tab_strip_region_view;
++  }
++  void set_vertical_tab_strip(views::View* vertical_tab_strip) {
++    vertical_tab_strip_ = vertical_tab_strip;
+   }
+   void set_loading_bar(views::View* loading_bar) {
+     loading_bar_ = loading_bar;
+--- a/chrome/browser/ui/views/frame/browser_view_layout.h
++++ b/chrome/browser/ui/views/frame/browser_view_layout.h
+@@ -173,6 +173,8 @@ class BrowserViewLayout : public views::
+   raw_ptr<views::View> side_panel_ = nullptr;
+   raw_ptr<views::View> right_aligned_side_panel_ = nullptr;
+   raw_ptr<views::View> left_aligned_side_panel_ = nullptr;
++
++  raw_ptr<views::View> vertical_tab_strip_ = nullptr;
+
+   // The bounds within which the vertically-stacked contents of the BrowserView
+   // should be laid out within. This is just the local bounds of the
+--- a/chrome/browser/ui/views/frame/browser_view_layout.cc
++++ b/chrome/browser/ui/views/frame/browser_view_layout.cc
+@@ -483,6 +483,16 @@ void BrowserViewLayout::Layout(views::Vi
+   LayoutSidePanelView(host, top_container_bounds, content_area_bounds);
+ #endif
+
++  // ---- Vertical Tab Strip sidebar (left of content area) ----
++  if (vertical_tab_strip_ && vertical_tab_strip_->GetVisible()) {
++    const int sidebar_w = vertical_tab_strip_->GetPreferredSize().width();
++    vertical_tab_strip_->SetBounds(
++        content_area_bounds.x(), content_area_bounds.y(),
++        sidebar_w, content_area_bounds.height());
++    content_area_bounds.Inset(
++        gfx::Insets::TLBR(0, sidebar_w, 0, 0));
++  }
++
+   // Layout the contents container in the remaining space.
+   contents_container_->SetBoundsRect(content_area_bounds);
+
+--- a/chrome/browser/ui/views/frame/tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/tab_strip_region_view.cc
+@@ -13,6 +13,7 @@
+ #include <utility>
+ #include <vector>
+
++#include "base/command_line.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "chrome/browser/themes/theme_properties.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+@@ -222,6 +223,11 @@ TabStripRegionView::TabStripRegionView(s
+   // the tab strip for overflow.
+   SetFlexForView(tab_strip_, {1});
+
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("dark-vertical-tabs")) {
++    SetVisible(false);
++    SetPreferredSize(gfx::Size(0, 0));
++  }
++
+   UpdateNewTabButtonBorder();
+
+   SetProperty(views::kElementIdentifierKey, kTabStripRegionElementId);
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -88,4 +88,8 @@
+      "Hide tab close buttons",
+      "Hides the close buttons on tabs. ungoogled-chromium flag.",
+      kOsDesktop, SINGLE_VALUE_TYPE("hide-tab-close-buttons")},
++    {"dark-vertical-tabs",
++     "Dark Vertical Tabs (NASA Worm Edition)",
++     "Replaces the horizontal tab strip with a dark vertical sidebar featuring circular favicon indicators that expand on hover. Uses a 1980s NASA worm logotype-inspired aesthetic. ungoogled-chromium flag.",
++     kOsDesktop, SINGLE_VALUE_TYPE("dark-vertical-tabs")},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/chrome/browser/ui/views/tabs/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/BUILD.gn
+@@ -42,6 +42,8 @@ source_set("tabs") {
+     "tab_style_views.h",
+     "tab_strip.cc",
+     "tab_strip.h",
++    "vertical_tab_strip.cc",
++    "vertical_tab_strip.h",
+     "z_orderable_tab_container_element.cc",
+     "z_orderable_tab_container_element.h",
+   ]
+@@ -74,6 +76,7 @@ source_set("tabs") {
+     "//chrome/browser/ui/views/frame",
+     "//chrome/browser/ui/web_applications",
+     "//chrome/common",
++    "//chrome/browser/favicon",
+     "//components/tab_groups",
+     "//third_party/skia",
+     "//ui/base",
