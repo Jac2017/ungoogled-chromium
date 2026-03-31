@@ -25,9 +25,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: dark-vertical-tabs-app/requirements.txt
 
       - name: Install dependencies
-        run: pip install PySide6 pyinstaller
+        run: pip install -r dark-vertical-tabs-app/requirements.txt
 
       - name: Build .exe
         working-directory: dark-vertical-tabs-app
@@ -59,9 +60,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: dark-vertical-tabs-app/requirements.txt
 
       - name: Install dependencies
-        run: pip3 install PySide6 pyinstaller
+        run: pip3 install -r dark-vertical-tabs-app/requirements.txt
 
       - name: Generate app icon (.icns)
         working-directory: dark-vertical-tabs-app
