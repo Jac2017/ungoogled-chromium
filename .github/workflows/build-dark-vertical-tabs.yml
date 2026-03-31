@@ -1,0 +1,222 @@
+name: Build Dark Vertical Tabs
+
+on:
+  push:
+    branches: ["claude/dark-vertical-tabs-ui-vLjj7", "main", "master"]
+    paths:
+      - "dark-vertical-tabs-app/**"
+      - ".github/workflows/build-dark-vertical-tabs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ==================================================================
+  # Windows .exe
+  # ==================================================================
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install PySide6 pyinstaller
+
+      - name: Build .exe
+        working-directory: dark-vertical-tabs-app
+        run: |
+          pyinstaller `
+            --onefile `
+            --noconsole `
+            --name DarkVerticalTabs `
+            --add-data "README.txt;." `
+            browser.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DarkVerticalTabs-Windows
+          path: dark-vertical-tabs-app/dist/DarkVerticalTabs.exe
+          retention-days: 90
+
+  # ==================================================================
+  # macOS .dmg (Universal — Intel + Apple Silicon)
+  # ==================================================================
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip3 install PySide6 pyinstaller
+
+      - name: Generate app icon (.icns)
+        working-directory: dark-vertical-tabs-app
+        run: |
+          mkdir -p build/AppIcon.iconset
+          python3 -c "
+          import os
+          from PySide6.QtCore import QSize
+          from PySide6.QtGui import QImage, QPainter, QColor, QBrush, QPen
+
+          sizes = [16, 32, 64, 128, 256, 512]
+          for size in sizes:
+              for scale in (1, 2):
+                  px = size * scale
+                  img = QImage(px, px, QImage.Format.Format_ARGB32_Premultiplied)
+                  img.fill(QColor(0, 0, 0, 0))
+                  p = QPainter(img)
+                  p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                  cx, cy = px / 2, px / 2
+                  # Dark outer circle
+                  p.setPen(QPen(QColor(0x18, 0x20, 0x40), px * 0.06))
+                  p.setBrush(QBrush(QColor(0x0B, 0x0E, 0x17)))
+                  r = px * 0.44
+                  p.drawEllipse(int(cx-r), int(cy-r), int(r*2), int(r*2))
+                  # Worm red inner
+                  p.setPen(QPen(QColor(0,0,0,0)))
+                  p.setBrush(QBrush(QColor(0xFC, 0x3D, 0x21)))
+                  r2 = px * 0.30
+                  p.drawEllipse(int(cx-r2), int(cy-r2), int(r2*2), int(r2*2))
+                  # White ring
+                  p.setPen(QPen(QColor(255,255,255,100), max(1, px*0.03)))
+                  p.setBrush(QBrush(QColor(0,0,0,0)))
+                  r3 = px * 0.20
+                  p.drawEllipse(int(cx-r3), int(cy-r3), int(r3*2), int(r3*2))
+                  p.end()
+                  suffix = f'@2x' if scale == 2 else ''
+                  img.save(f'build/AppIcon.iconset/icon_{size}x{size}{suffix}.png')
+          "
+          iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
+
+      - name: Build .app bundle
+        working-directory: dark-vertical-tabs-app
+        run: |
+          pyinstaller \
+            --windowed \
+            --name DarkVerticalTabs \
+            --icon build/AppIcon.icns \
+            --noconfirm \
+            --clean \
+            --hidden-import PySide6.QtWebEngineWidgets \
+            --hidden-import PySide6.QtWebEngineCore \
+            --hidden-import PySide6.QtNetwork \
+            --hidden-import PySide6.QtPositioning \
+            browser.py
+
+      - name: Patch Info.plist
+        working-directory: dark-vertical-tabs-app
+        run: |
+          python3 -c "
+          import plistlib, os
+          plist_path = 'dist/DarkVerticalTabs.app/Contents/Info.plist'
+          with open(plist_path, 'rb') as f:
+              plist = plistlib.load(f)
+          plist.update({
+              'CFBundleDisplayName': 'Dark Vertical Tabs',
+              'CFBundleName': 'Dark Vertical Tabs',
+              'CFBundleIdentifier': 'app.darkverticaltabs.browser',
+              'CFBundleShortVersionString': '1.0.0',
+              'CFBundleVersion': '1.0.0',
+              'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True},
+              'NSHighResolutionCapable': True,
+              'LSMinimumSystemVersion': '11.0',
+              'NSSupportsAutomaticGraphicsSwitching': True,
+          })
+          with open(plist_path, 'wb') as f:
+              plistlib.dump(plist, f)
+          print('Info.plist patched')
+          "
+
+      - name: Create .dmg
+        working-directory: dark-vertical-tabs-app
+        run: |
+          mkdir -p dmg-staging
+          cp -R dist/DarkVerticalTabs.app dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create \
+            -volname "Dark Vertical Tabs — NASA Worm Edition" \
+            -srcfolder dmg-staging \
+            -ov \
+            -format UDZO \
+            -imagekey zlib-level=9 \
+            dist/DarkVerticalTabs.dmg
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DarkVerticalTabs-macOS
+          path: dark-vertical-tabs-app/dist/DarkVerticalTabs.dmg
+          retention-days: 90
+
+  # ==================================================================
+  # Create GitHub Release with both artifacts
+  # ==================================================================
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/claude/dark-vertical-tabs-ui-vLjj7'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: DarkVerticalTabs-Windows
+          path: artifacts/windows
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: DarkVerticalTabs-macOS
+          path: artifacts/macos
+
+      - name: Generate release tag
+        id: tag
+        run: echo "tag=v1.0.0-build.$(date +%Y%m%d.%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Dark Vertical Tabs — NASA Worm Edition (${{ steps.tag.outputs.tag }})"
+          body: |
+            ## Dark Vertical Tabs — NASA Worm Edition
+
+            Standalone dark-themed browser with vertical tab sidebar, circular favicon
+            indicators that expand on hover, and 1980s NASA worm logotype-inspired design.
+
+            ### Downloads
+            | Platform | File | Install |
+            |----------|------|---------|
+            | **Windows** | `DarkVerticalTabs.exe` | Download and double-click |
+            | **macOS** | `DarkVerticalTabs.dmg` | Open DMG, drag to Applications |
+
+            ### Features
+            - Deep space dark theme (`#0B0E17`) with NASA worm red (`#FC3D21`) accents
+            - Circular favicon ring indicators — hover sidebar to expand tab names
+            - Century Gothic (Win) / Futura (Mac) worm logotype font with wide tracking
+            - CRT scanline overlay for retro 1980s aesthetic
+            - Full keyboard shortcuts: Cmd/Ctrl+T, W, L, R, Tab
+            - Built-in DuckDuckGo search
+
+            ---
+            *Auto-built from `${{ github.sha }}`*
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/windows/DarkVerticalTabs.exe
+            artifacts/macos/DarkVerticalTabs.dmg
