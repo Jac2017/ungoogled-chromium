@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glass Browser — Settings</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --glass-bg: rgba(28, 28, 30, 0.92);
+      --glass-bg-hover: rgba(44, 44, 46, 0.88);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-border-hover: rgba(255, 255, 255, 0.14);
+      --text-primary: rgba(255, 255, 255, 0.92);
+      --text-secondary: rgba(255, 255, 255, 0.55);
+      --text-tertiary: rgba(255, 255, 255, 0.35);
+      --accent-blue: #0A84FF;
+      --accent-teal: #64D2FF;
+      --accent-green: #30D158;
+      --accent-red: #FF453A;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 100px;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+    }
+
+    html {
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      color: var(--text-primary);
+      background: #000;
+    }
+
+    body { min-height: 100vh; }
+
+    .settings-container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .settings-header {
+      margin-bottom: 40px;
+    }
+
+    .settings-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .settings-header p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Sections */
+    .settings-section {
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+      padding-left: 16px;
+    }
+
+    .section-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    /* Setting Row */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-info {
+      flex: 1;
+      margin-right: 16px;
+    }
+
+    .setting-label {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .setting-description {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+    }
+
+    /* Toggle */
+    .toggle {
+      position: relative;
+      width: 51px;
+      height: 31px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.10);
+      border-radius: var(--radius-pill);
+      transition: background 200ms cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 27px; height: 27px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .toggle input:checked + .toggle-track {
+      background: var(--accent-green);
+    }
+
+    .toggle input:checked + .toggle-track::after {
+      transform: translateX(20px);
+    }
+
+    /* Input */
+    .setting-input {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 13px;
+      outline: none;
+      width: 200px;
+      transition: border-color 150ms;
+    }
+
+    .setting-input:focus { border-color: var(--accent-blue); }
+
+    .setting-input[type="password"] {
+      font-family: monospace;
+      letter-spacing: 0.1em;
+    }
+
+    /* Select */
+    .setting-select {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      padding: 8px 28px 8px 12px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 13px;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+
+    .setting-select option { background: #1c1c1e; color: #fff; }
+
+    /* Button */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 24px;
+      background: var(--accent-blue);
+      border: none;
+      border-radius: var(--radius-pill);
+      color: #fff;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 150ms;
+    }
+
+    .btn-primary:hover { filter: brightness(1.1); transform: scale(1.02); }
+    .btn-primary:active { transform: scale(0.98); }
+
+    .btn-danger {
+      background: var(--accent-red);
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-badge.connected {
+      background: rgba(48, 209, 88, 0.15);
+      color: var(--accent-green);
+    }
+
+    .status-badge.disconnected {
+      background: rgba(255, 69, 58, 0.15);
+      color: var(--accent-red);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Version info */
+    .version-info {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-tertiary);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .version-info .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      letter-spacing: -0.03em;
+    }
+  </style>
+</head>
+<body>
+  <div class="settings-container">
+    <div class="settings-header">
+      <h1>Settings</h1>
+      <p>Configure Glass Browser features, Claude AI, and personalization.</p>
+    </div>
+
+    <!-- Appearance -->
+    <div class="settings-section">
+      <div class="section-title">Appearance</div>
+      <div class="section-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Glass Dark Theme</div>
+            <div class="setting-description">Translucent surfaces with glass morphism effects</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" checked disabled />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Vertical Tab Sidebar</div>
+            <div class="setting-description">Replace horizontal tabs with a collapsible sidebar</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="vertical-tabs-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Sidebar Default State</div>
+            <div class="setting-description">Start with sidebar collapsed (favicon-only)</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="sidebar-collapsed-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Claude AI -->
+    <div class="settings-section">
+      <div class="section-title">Claude AI</div>
+      <div class="section-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Claude Integration</div>
+            <div class="setting-description">Enable Claude AI panel for tab organization and assistance</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="claude-enabled-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">API Key</div>
+            <div class="setting-description">Your Anthropic API key (stored locally, never synced)</div>
+          </div>
+          <input type="password" id="claude-api-key" class="setting-input" placeholder="sk-ant-..." />
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Connection Status</div>
+          </div>
+          <span id="claude-status" class="status-badge disconnected">
+            <span class="status-dot"></span>
+            Not configured
+          </span>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Auto-organize Tabs</div>
+            <div class="setting-description">Automatically suggest tab groups when 4+ ungrouped tabs are open</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="auto-organize-toggle" />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="settings-section">
+      <div class="section-title">Search</div>
+      <div class="section-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Default Search Engine</div>
+          </div>
+          <select id="search-engine-select" class="setting-select">
+            <option value="bing" selected>Bing</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="startpage">Startpage</option>
+            <option value="brave">Brave Search</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Discovery Feed -->
+    <div class="settings-section">
+      <div class="section-title">Discovery Feed</div>
+      <div class="section-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Show Discovery Feed</div>
+            <div class="setting-description">Display personalized news on the New Tab Page</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="feed-enabled-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Refresh Interval</div>
+          </div>
+          <select id="feed-refresh-select" class="setting-select">
+            <option value="15">15 minutes</option>
+            <option value="30" selected>30 minutes</option>
+            <option value="60">1 hour</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Use Browsing History</div>
+            <div class="setting-description">Personalize feed using local browsing history (data stays on device)</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="feed-history-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Sponsored Content</div>
+            <div class="setting-description">Show Google AdSense advertisements in the feed</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="feed-ads-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Bing News API Key</div>
+            <div class="setting-description">Optional: for live news feed (stored locally)</div>
+          </div>
+          <input type="password" id="bing-api-key" class="setting-input" placeholder="Enter key..." />
+        </div>
+      </div>
+    </div>
+
+    <!-- Extensions -->
+    <div class="settings-section">
+      <div class="section-title">Extensions</div>
+      <div class="section-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Honey by PayPal</div>
+            <div class="setting-description">Automatic coupon finder and cashback rewards</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="honey-toggle" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Privacy -->
+    <div class="settings-section">
+      <div class="section-title">Privacy</div>
+      <div class="section-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Block Third-Party Cookies</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">DNS over HTTPS</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="version-info">
+      <div class="logo">Glass Browser</div>
+      <div>Version 1.0.0</div>
+      <div>Built on ungoogled-chromium</div>
+      <div>Designed with care, inspired by Jony Ive and Dieter Rams</div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    // Settings persistence via chrome.storage.local
+    // Each toggle/input saves immediately on change
+    document.querySelectorAll('.toggle input, .setting-select, .setting-input').forEach((el) => {
+      el.addEventListener('change', () => {
+        const settings = {};
+        document.querySelectorAll('[id]').forEach((input) => {
+          if (input.type === 'checkbox') settings[input.id] = input.checked;
+          else if (input.value) settings[input.id] = input.value;
+        });
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          chrome.storage.local.set({ glass_settings: settings });
+        } else {
+          localStorage.setItem('glass_settings', JSON.stringify(settings));
+        }
+      });
+    });
+  </script>
+</body>
+</html>

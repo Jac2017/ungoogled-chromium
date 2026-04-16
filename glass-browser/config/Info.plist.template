@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Glass Browser — macOS Application Bundle Info.plist Template
+
+  This template is applied during the macOS build process to brand
+  the Chromium.app bundle as Glass Browser.app.
+
+  Variables (replaced by build script):
+    @GLASS_VERSION@     — e.g., "1.0.0"
+    @CHROMIUM_VERSION@  — e.g., "146.0.7680.164"
+    @BUILD_NUMBER@      — Auto-incremented build number
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+
+  <key>CFBundleDisplayName</key>
+  <string>Glass Browser</string>
+
+  <key>CFBundleExecutable</key>
+  <string>Glass Browser</string>
+
+  <key>CFBundleIconFile</key>
+  <string>app.icns</string>
+
+  <key>CFBundleIdentifier</key>
+  <string>com.glassbrowser.app</string>
+
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+
+  <key>CFBundleName</key>
+  <string>Glass Browser</string>
+
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+
+  <key>CFBundleShortVersionString</key>
+  <string>@GLASS_VERSION@</string>
+
+  <key>CFBundleVersion</key>
+  <string>@BUILD_NUMBER@</string>
+
+  <key>CFBundleSignature</key>
+  <string>GLSS</string>
+
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+
+  <key>NSHighResolutionCapable</key>
+  <true/>
+
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <false/>
+    <key>NSAllowsArbitraryLoadsInWebContent</key>
+    <true/>
+  </dict>
+
+  <key>NSCameraUsageDescription</key>
+  <string>Glass Browser needs camera access for websites that request it.</string>
+
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Glass Browser needs microphone access for websites that request it.</string>
+
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Glass Browser needs location access for websites that request it.</string>
+
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Web URL</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>http</string>
+        <string>https</string>
+      </array>
+    </dict>
+  </array>
+
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>HTML Document</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.html</string>
+        <string>public.xhtml</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>PDF Document</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.adobe.pdf</string>
+      </array>
+    </dict>
+  </array>
+
+  <key>GlassBrowserVersion</key>
+  <string>@GLASS_VERSION@</string>
+
+  <key>GlassBrowserChromiumVersion</key>
+  <string>@CHROMIUM_VERSION@</string>
+
+  <key>GlassBrowserFeatures</key>
+  <dict>
+    <key>VerticalTabs</key>
+    <true/>
+    <key>ClaudeAI</key>
+    <true/>
+    <key>HoneyExtension</key>
+    <true/>
+    <key>GlassTheme</key>
+    <true/>
+    <key>BingDefaultSearch</key>
+    <true/>
+    <key>DiscoveryFeed</key>
+    <true/>
+  </dict>
+</dict>
+</plist>

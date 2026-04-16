@@ -1,0 +1,74 @@
+<!-- ==========================================================================
+     Glass Browser Resource Definitions
+
+     Registers Glass Browser's HTML, CSS, and JS resources with Chromium's
+     resource bundling system (PAK files). These resources are compiled into
+     the browser binary and served via chrome:// URLs.
+
+     Integration:
+       This file is included from chrome/browser/resources/browser_resources.grd
+       via a Glass Browser patch that adds:
+         <part file="glass-browser/glass-resources.grdp" />
+     ========================================================================== -->
+
+<?xml version="1.0" encoding="utf-8"?>
+<grit-part>
+  <structures>
+    <!-- ===== New Tab Page ===== -->
+    <structure name="IDR_GLASS_NEWTAB_HTML"
+               file="glass-browser/newtab/newtab.html"
+               type="chrome_html"
+               preprocess="true"
+               allowexternalscript="false" />
+
+    <structure name="IDR_GLASS_NEWTAB_CSS"
+               file="glass-browser/newtab/newtab.css"
+               type="chrome_html"
+               preprocess="true" />
+
+    <structure name="IDR_GLASS_NEWTAB_JS"
+               file="glass-browser/newtab/newtab.js"
+               type="chrome_html"
+               preprocess="true" />
+
+    <!-- ===== Vertical Tab Sidebar ===== -->
+    <structure name="IDR_GLASS_VERTICAL_TABS_HTML"
+               file="glass-browser/sidebar/vertical-tabs.html"
+               type="chrome_html"
+               preprocess="true"
+               allowexternalscript="false" />
+
+    <structure name="IDR_GLASS_VERTICAL_TABS_CSS"
+               file="glass-browser/sidebar/vertical-tabs.css"
+               type="chrome_html"
+               preprocess="true" />
+
+    <structure name="IDR_GLASS_VERTICAL_TABS_JS"
+               file="glass-browser/sidebar/vertical-tabs.js"
+               type="chrome_html"
+               preprocess="true" />
+
+    <!-- ===== Claude AI Panel ===== -->
+    <structure name="IDR_GLASS_CLAUDE_PANEL_HTML"
+               file="glass-browser/sidebar/claude-panel.html"
+               type="chrome_html"
+               preprocess="true"
+               allowexternalscript="false" />
+
+    <structure name="IDR_GLASS_CLAUDE_PANEL_CSS"
+               file="glass-browser/sidebar/claude-panel.css"
+               type="chrome_html"
+               preprocess="true" />
+
+    <structure name="IDR_GLASS_CLAUDE_PANEL_JS"
+               file="glass-browser/sidebar/claude-panel.js"
+               type="chrome_html"
+               preprocess="true" />
+
+    <!-- ===== Glass Theme ===== -->
+    <structure name="IDR_GLASS_DARK_THEME_CSS"
+               file="glass-browser/theme/glass-dark.css"
+               type="chrome_html"
+               preprocess="true" />
+  </structures>
+</grit-part>

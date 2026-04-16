@@ -1,0 +1,60 @@
+{
+  "_comment": "Glass Browser Theme Extension Manifest — Fallback theme for standalone installation",
+  "manifest_version": 3,
+  "name": "Glass Dark Theme",
+  "version": "1.0.0",
+  "description": "Apple Glass-inspired dark theme with translucent surfaces and glass morphism effects.",
+  "author": "Glass Browser Team",
+
+  "theme": {
+    "colors": {
+      "frame":                         [0, 0, 0],
+      "frame_inactive":                [0, 0, 0],
+      "frame_incognito":               [15, 15, 20],
+      "frame_incognito_inactive":      [15, 15, 20],
+
+      "toolbar":                       [30, 30, 32],
+      "toolbar_text":                  [235, 235, 240],
+      "toolbar_button_icon":           [170, 170, 175],
+
+      "tab_background_active_frame_active":     [38, 38, 40],
+      "tab_background_active_frame_inactive":   [35, 35, 38],
+      "tab_background_inactive_frame_active":   [28, 28, 30],
+      "tab_background_inactive_frame_inactive": [25, 25, 28],
+      "tab_text":                      [235, 235, 240],
+
+      "ntp_background":                [0, 0, 0],
+      "ntp_text":                      [235, 235, 240],
+      "ntp_link":                      [100, 210, 255],
+      "ntp_header":                    [28, 28, 30],
+
+      "bookmark_text":                 [180, 180, 185],
+
+      "omnibox_background":            [28, 28, 30],
+      "omnibox_text":                  [235, 235, 240],
+      "omnibox_selected_keyword":      [10, 132, 255],
+      "omnibox_results_bg":            [38, 38, 40],
+      "omnibox_results_text":          [235, 235, 240],
+      "omnibox_results_url":           [100, 210, 255],
+
+      "button_background":             [10, 132, 255]
+    },
+
+    "tints": {
+      "buttons":                       [0.6, 0.4, 0.7],
+      "frame":                         [-1, -1, -1],
+      "frame_inactive":                [-1, -1, 0.8],
+      "background_tab":                [0.58, 0.2, 0.6]
+    },
+
+    "properties": {
+      "ntp_background_alignment": "center",
+      "ntp_logo_alternate": 1
+    }
+  },
+
+  "icons": {
+    "16": "icons/glass-theme-16.png",
+    "128": "icons/glass-theme-128.png"
+  }
+}
