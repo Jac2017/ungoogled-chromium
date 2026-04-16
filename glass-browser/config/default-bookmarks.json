@@ -1,0 +1,90 @@
+{
+  "_comment": "Glass Browser — Default bookmarks for the New Tab Page",
+  "_design_note": "Two rows of glass capsule bookmark tiles, prioritizing utility and daily use",
+  "bookmarks": [
+    {
+      "name": "Bing",
+      "url": "https://www.bing.com",
+      "icon": "B",
+      "position": 0
+    },
+    {
+      "name": "YouTube",
+      "url": "https://www.youtube.com",
+      "icon": "Y",
+      "position": 1
+    },
+    {
+      "name": "Gmail",
+      "url": "https://mail.google.com",
+      "icon": "G",
+      "position": 2
+    },
+    {
+      "name": "Reddit",
+      "url": "https://www.reddit.com",
+      "icon": "R",
+      "position": 3
+    },
+    {
+      "name": "GitHub",
+      "url": "https://github.com",
+      "icon": "H",
+      "position": 4
+    },
+    {
+      "name": "Wikipedia",
+      "url": "https://www.wikipedia.org",
+      "icon": "W",
+      "position": 5
+    },
+    {
+      "name": "Twitter",
+      "url": "https://twitter.com",
+      "icon": "X",
+      "position": 6
+    },
+    {
+      "name": "Amazon",
+      "url": "https://www.amazon.com",
+      "icon": "A",
+      "position": 7
+    },
+    {
+      "name": "Netflix",
+      "url": "https://www.netflix.com",
+      "icon": "N",
+      "position": 8
+    },
+    {
+      "name": "LinkedIn",
+      "url": "https://www.linkedin.com",
+      "icon": "L",
+      "position": 9
+    },
+    {
+      "name": "Maps",
+      "url": "https://maps.google.com",
+      "icon": "M",
+      "position": 10
+    },
+    {
+      "name": "News",
+      "url": "https://news.bing.com",
+      "icon": "N",
+      "position": 11
+    },
+    {
+      "name": "Spotify",
+      "url": "https://open.spotify.com",
+      "icon": "S",
+      "position": 12
+    },
+    {
+      "name": "Translate",
+      "url": "https://translate.google.com",
+      "icon": "T",
+      "position": 13
+    }
+  ]
+}

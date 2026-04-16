@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude AI — Glass Browser</title>
+  <link rel="stylesheet" href="claude-panel.css">
+</head>
+<body>
+  <aside id="claude-panel" class="hidden">
+    <!-- Panel Header -->
+    <div id="claude-header">
+      <div id="claude-brand">
+        <div id="claude-avatar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 12s1.5 2 4 2 4-2 4-2"/>
+            <circle cx="9" cy="10" r="1" fill="currentColor"/>
+            <circle cx="15" cy="10" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div id="claude-title-wrap">
+          <span id="claude-title">Claude</span>
+          <span id="claude-badge">AI Assistant</span>
+        </div>
+      </div>
+      <div id="claude-header-actions">
+        <button id="claude-organize-btn" class="claude-action-btn" title="Organize tabs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </button>
+        <button id="claude-close-btn" class="claude-action-btn" title="Close panel">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div id="claude-quick-actions">
+      <button class="quick-action-chip" data-action="organize">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Organize Tabs
+      </button>
+      <button class="quick-action-chip" data-action="summarize">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+        Summarize Page
+      </button>
+      <button class="quick-action-chip" data-action="compare">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Compare Tabs
+      </button>
+      <button class="quick-action-chip" data-action="research">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Deep Research
+      </button>
+    </div>
+
+    <!-- Chat Messages -->
+    <div id="claude-messages">
+      <div class="message assistant">
+        <div class="message-content">
+          <p>Hello! I'm Claude, your AI browsing assistant. I can help you:</p>
+          <ul>
+            <li><strong>Organize tabs</strong> into meaningful groups</li>
+            <li><strong>Summarize</strong> the current page</li>
+            <li><strong>Compare</strong> products across tabs</li>
+            <li><strong>Research</strong> topics from your browsing</li>
+          </ul>
+          <p>What would you like to do?</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Organization Preview -->
+    <div id="claude-tab-preview" style="display:none;">
+      <div id="tab-preview-header">
+        <span>Suggested Tab Groups</span>
+        <button id="tab-preview-apply" class="claude-apply-btn">Apply</button>
+        <button id="tab-preview-dismiss" class="claude-dismiss-btn">Dismiss</button>
+      </div>
+      <div id="tab-preview-groups">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Input Area -->
+    <div id="claude-input-area">
+      <div id="claude-input-wrap">
+        <textarea id="claude-input" placeholder="Ask Claude anything..." rows="1"></textarea>
+        <button id="claude-send-btn" title="Send message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div id="claude-input-hint">
+        <span>Claude for Chrome</span>
+        <span class="hint-separator">·</span>
+        <span>Powered by Anthropic</span>
+      </div>
+    </div>
+  </aside>
+
+  <script src="claude-panel.js"></script>
+</body>
+</html>

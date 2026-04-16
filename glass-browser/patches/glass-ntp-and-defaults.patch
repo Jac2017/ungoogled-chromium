@@ -1,0 +1,83 @@
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -1,3 +1,4 @@
++// Glass Browser: Override default preferences for Glass experience
+ // Copyright 2012 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ -50,6 +51,28 @@ void RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
++  // Glass Browser defaults
++  // Default search engine: Bing
++  registry->RegisterStringPref("default_search_provider.search_url",
++      "https://www.bing.com/search?q={searchTerms}");
++  registry->RegisterStringPref("default_search_provider.suggest_url",
++      "https://www.bing.com/osjson.aspx?query={searchTerms}");
++  registry->RegisterStringPref("default_search_provider.name", "Bing");
++  registry->RegisterStringPref("default_search_provider.keyword", "bing.com");
++  registry->RegisterStringPref("default_search_provider.favicon_url",
++      "https://www.bing.com/favicon.ico");
++
++  // Dark mode by default
++  registry->RegisterIntegerPref("browser.theme.color_mode", 1);  // 1 = dark
++
++  // Enable Glass vertical tabs
++  registry->RegisterBooleanPref("glass.vertical_tabs.enabled", true);
++  registry->RegisterBooleanPref("glass.vertical_tabs.collapsed", true);
++
++  // Enable Claude for Chrome integration
++  registry->RegisterBooleanPref("glass.claude.enabled", true);
++  registry->RegisterStringPref("glass.claude.api_key", "");
++
++  // Feed preferences
++  registry->RegisterIntegerPref("glass.feed.refresh_interval_minutes", 30);
++  registry->RegisterBooleanPref("glass.feed.use_history", true);
++  registry->RegisterBooleanPref("glass.feed.show_ads", true);
++
+   // Original Chromium pref registration follows...
+
+--- a/chrome/browser/search/search_engine_choice_service.cc
++++ b/chrome/browser/search/search_engine_choice_service.cc
+@@ -1,3 +1,4 @@
++// Glass Browser: Set Bing as default search engine
+ // Copyright 2023 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ -20,6 +21,12 @@ void SearchEngineChoiceService::SetDefaultSearchEngine() {
++  // Glass Browser: Use Bing as default search engine
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("glass-default-bing")) {
++    TemplateURLData data;
++    data.SetShortName(u"Bing");
++    data.SetKeyword(u"bing.com");
++    data.SetURL("https://www.bing.com/search?q={searchTerms}");
++    data.suggestions_url = "https://www.bing.com/osjson.aspx?query={searchTerms}";
++    data.favicon_url = GURL("https://www.bing.com/favicon.ico");
++    template_url_service->SetUserSelectedDefaultSearchProvider(
++        template_url_service->Add(std::make_unique<TemplateURL>(data)));
++    return;
++  }
++
+   // Original Chromium search engine selection follows...
+
+--- a/chrome/browser/ui/webui/ntp/new_tab_ui.cc
++++ b/chrome/browser/ui/webui/ntp/new_tab_ui.cc
+@@ -1,3 +1,4 @@
++// Glass Browser: Custom NTP with Glass design
+ // Copyright 2012 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ -15,6 +16,15 @@
+
+ NewTabUI::NewTabUI(content::WebUI* web_ui) : content::WebUIController(web_ui) {
++  // Glass Browser: Load custom New Tab Page with glass morphism UI
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("glass-ntp")) {
++    content::WebUIDataSource* source =
++        content::WebUIDataSource::CreateAndAdd(
++            web_ui->GetWebContents()->GetBrowserContext(), "glass-newtab");
++    source->AddResourcePath("", IDR_GLASS_NEWTAB_HTML);
++    source->AddResourcePath("newtab.css", IDR_GLASS_NEWTAB_CSS);
++    source->AddResourcePath("newtab.js", IDR_GLASS_NEWTAB_JS);
++    return;
++  }
++
+   // Original Chromium NTP initialization follows...

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glass Browser — Vertical Tabs</title>
+  <link rel="stylesheet" href="vertical-tabs.css">
+</head>
+<body>
+  <!-- Vertical Tab Sidebar -->
+  <aside id="tab-sidebar" class="collapsed">
+    <!-- Top Controls -->
+    <div id="sidebar-header">
+      <button id="new-tab-btn" class="sidebar-action-btn" title="New Tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span class="sidebar-label">New Tab</span>
+      </button>
+      <button id="claude-toggle-btn" class="sidebar-action-btn" title="Claude AI">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-1 4H10l-1-4c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/>
+          <line x1="10" y1="22" x2="14" y2="22"/>
+        </svg>
+        <span class="sidebar-label">Claude AI</span>
+      </button>
+    </div>
+
+    <!-- Search / Filter tabs -->
+    <div id="tab-search-wrap">
+      <input id="tab-search" type="text" placeholder="Search tabs..." />
+    </div>
+
+    <!-- Tab Groups Container -->
+    <div id="tab-groups-container">
+      <!-- Tab groups are rendered dynamically by JS -->
+      <!-- Example structure:
+        <div class="tab-group" data-group-id="g1">
+          <div class="tab-group-header">
+            <span class="group-color-dot" style="background:#64D2FF"></span>
+            <span class="group-name">Las Vegas Trip Planning</span>
+            <span class="group-count">3</span>
+            <button class="group-collapse-btn">▾</button>
+          </div>
+          <div class="tab-group-items">
+            <div class="tab-item active" data-tab-id="t1">
+              <img class="tab-favicon" src="..." />
+              <span class="tab-title">Hotel deals in Las Vegas</span>
+              <button class="tab-close-btn">×</button>
+            </div>
+          </div>
+        </div>
+      -->
+    </div>
+
+    <!-- Pinned Tabs -->
+    <div id="pinned-tabs-section">
+      <div id="pinned-tabs-header">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15.9 4.1l4 4L9.5 18.5l-5.5 1.5 1.5-5.5L15.9 4.1z"/>
+        </svg>
+        <span class="sidebar-label">Pinned</span>
+      </div>
+      <div id="pinned-tabs-list">
+        <!-- Pinned tabs rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div id="sidebar-footer">
+      <button id="sidebar-settings-btn" class="sidebar-action-btn" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span class="sidebar-label">Settings</span>
+      </button>
+      <button id="sidebar-collapse-btn" class="sidebar-action-btn" title="Collapse sidebar">
+        <svg id="collapse-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="11 17 6 12 11 7"/>
+          <polyline points="18 17 13 12 18 7"/>
+        </svg>
+        <span class="sidebar-label">Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <script src="vertical-tabs.js"></script>
+</body>
+</html>

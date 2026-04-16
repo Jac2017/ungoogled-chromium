@@ -1,0 +1,77 @@
+# ==========================================================================
+# Glass Browser — GN Build Configuration
+#
+# These flags extend ungoogled-chromium's flags.gn with Glass-specific
+# build variables. They are merged during the build process.
+#
+# Usage:
+#   cat flags.gn glass-browser/config/glass_flags.gn > out/Default/args.gn
+#   gn gen out/Default
+# ==========================================================================
+
+# ---------- Glass Browser Feature Flags ----------
+
+# Enable Glass Browser UI (vertical tabs, dark theme, Claude panel)
+glass_browser_enabled = true
+
+# Enable the custom New Tab Page with glass morphism design
+glass_custom_ntp = true
+
+# Enable vertical tab sidebar
+glass_vertical_tabs = true
+
+# Enable Claude AI integration panel
+glass_claude_integration = true
+
+# Enable Honey extension pre-installation
+glass_honey_extension = true
+
+# Default search engine: Bing
+glass_default_search_bing = true
+
+# ---------- Branding ----------
+
+# Override Chromium branding with Glass Browser
+is_chrome_branded = false
+is_official_build = false
+chrome_product_full_name = "Glass Browser"
+chrome_product_short_name = "Glass"
+
+# ---------- Build Optimization ----------
+
+# Release build settings
+is_debug = false
+is_component_build = false
+symbol_level = 0
+enable_nacl = false
+blink_symbol_level = 0
+
+# ---------- Security ----------
+
+# Enable security features
+is_asan = false
+is_tsan = false
+enable_dangling_raw_ptr_checks = true
+
+# ---------- Platform (set per-platform in build scripts) ----------
+
+# macOS
+# target_os = "mac"
+# target_cpu = "arm64"  # For Apple Silicon, or "x64" for Intel
+
+# Windows
+# target_os = "win"
+# target_cpu = "x64"
+
+# ---------- Inherited from ungoogled-chromium ----------
+
+# Privacy-focused flags (inherited from flags.gn)
+build_with_tflite_lib = false
+enable_reporting = false
+enable_mdns = false
+safe_browsing_mode = 0
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+enable_widevine = true
+enable_hangout_services_extension = false

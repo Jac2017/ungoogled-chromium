@@ -1,0 +1,66 @@
+{
+  "_comment": "Glass Browser — Discovery Feed Configuration",
+  "feed": {
+    "refresh_interval_minutes": 30,
+    "max_articles": 20,
+    "ad_frequency": 4,
+    "personalization": {
+      "use_browsing_history": true,
+      "history_lookback_days": 7,
+      "min_history_entries": 5
+    },
+    "default_topics": [
+      "Technology",
+      "Science",
+      "World News",
+      "Entertainment",
+      "Sports"
+    ],
+    "available_topics": [
+      "Technology",
+      "Science",
+      "Business",
+      "Entertainment",
+      "Sports",
+      "Health",
+      "Travel",
+      "Food",
+      "Gaming",
+      "Fashion",
+      "Politics",
+      "World News",
+      "Finance",
+      "AI & Machine Learning",
+      "Space",
+      "Automotive",
+      "Music",
+      "Movies",
+      "Crypto",
+      "Fitness"
+    ],
+    "sources": {
+      "_comment": "In production, these are aggregation API endpoints",
+      "primary": "https://api.bing.microsoft.com/v7.0/news/search",
+      "trending": "https://api.bing.microsoft.com/v7.0/news/trendingtopics",
+      "personalized": "https://api.bing.microsoft.com/v7.0/news"
+    },
+    "ads": {
+      "provider": "google_adsense",
+      "client_id": "",
+      "slot_ids": [],
+      "format": "rectangle",
+      "label": "Sponsored"
+    }
+  },
+  "backgrounds": {
+    "source": "unsplash",
+    "categories": [
+      "bucket-list-travel",
+      "majestic-landscapes",
+      "nature-wildlife"
+    ],
+    "resolution": "1920x1080",
+    "cache_duration_hours": 24,
+    "rotation": "sequential"
+  }
+}

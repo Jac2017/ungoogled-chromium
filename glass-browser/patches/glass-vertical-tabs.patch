@@ -1,0 +1,256 @@
+--- /dev/null
++++ a/chrome/browser/ui/views/frame/glass_vertical_tab_strip.h
+@@ -0,0 +1,89 @@
++// Copyright 2026 Glass Browser Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_FRAME_GLASS_VERTICAL_TAB_STRIP_H_
++#define CHROME_BROWSER_UI_VIEWS_FRAME_GLASS_VERTICAL_TAB_STRIP_H_
++
++#include "base/memory/raw_ptr.h"
++#include "chrome/browser/ui/views/tabs/tab_strip.h"
++#include "ui/views/view.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/controls/webview/webview.h"
++
++namespace glass {
++
++// GlassVerticalTabStrip replaces the default horizontal TabStrip with a
++// vertical sidebar that supports:
++//   - Collapsed state: shows only favicons (52px wide)
++//   - Expanded state: shows full tab info (280px wide)
++//   - Hover-to-expand interaction
++//   - Claude AI-organized tab groups
++//   - Drag-and-drop tab reordering
++//
++// The sidebar is implemented as a WebView loading the Glass Browser's
++// vertical-tabs.html resource, which communicates with the native tab
++// model via chrome.tabs API extensions.
++//
++// Design rationale (Jony Ive / Dieter Rams):
++//   - Vertical tabs maximize horizontal content space
++//   - Collapse/expand respects user attention — show less when not needed
++//   - Glass morphism creates depth without visual weight
++//   - Groups reduce cognitive load by clustering related tabs
++
++class GlassVerticalTabStrip : public views::View {
++ public:
++  static constexpr int kCollapsedWidth = 52;
++  static constexpr int kExpandedWidth = 280;
++  static constexpr int kAnimationDurationMs = 280;
++
++  explicit GlassVerticalTabStrip(Browser* browser);
++  ~GlassVerticalTabStrip() override;
++
++  GlassVerticalTabStrip(const GlassVerticalTabStrip&) = delete;
++  GlassVerticalTabStrip& operator=(const GlassVerticalTabStrip&) = delete;
++
++  // views::View overrides
++  gfx::Size CalculatePreferredSize() const override;
++  void Layout() override;
++  void OnMouseEntered(const ui::MouseEvent& event) override;
++  void OnMouseExited(const ui::MouseEvent& event) override;
++
++  // Expand/collapse the sidebar
++  void SetExpanded(bool expanded);
++  bool IsExpanded() const { return is_expanded_; }
++
++  // Toggle Claude AI panel
++  void ToggleClaudePanel();
++  bool IsClaudePanelOpen() const { return claude_panel_open_; }
++
++ private:
++  // Animation callback
++  void AnimateWidth(int target_width);
++
++  raw_ptr<Browser> browser_;
++  raw_ptr<views::WebView> webview_;
++  bool is_expanded_ = false;
++  bool claude_panel_open_ = false;
++  int current_width_ = kCollapsedWidth;
++};
++
++// GlassClaudePanel provides the right-side panel for Claude AI integration.
++// Loads claude-panel.html and communicates with the Anthropic API via
++// a background service worker.
++
++class GlassClaudePanel : public views::View {
++ public:
++  static constexpr int kPanelWidth = 360;
++
++  explicit GlassClaudePanel(Browser* browser);
++  ~GlassClaudePanel() override;
++
++  GlassClaudePanel(const GlassClaudePanel&) = delete;
++  GlassClaudePanel& operator=(const GlassClaudePanel&) = delete;
++
++  gfx::Size CalculatePreferredSize() const override;
++  void Layout() override;
++
++  void Show();
++  void Hide();
++  bool IsVisible() const { return is_visible_; }
++
++ private:
++  raw_ptr<Browser> browser_;
++  raw_ptr<views::WebView> webview_;
++  bool is_visible_ = false;
++};
++
++}  // namespace glass
++
++#endif  // CHROME_BROWSER_UI_VIEWS_FRAME_GLASS_VERTICAL_TAB_STRIP_H_
+--- /dev/null
++++ a/chrome/browser/ui/views/frame/glass_vertical_tab_strip.cc
+@@ -0,0 +1,148 @@
++// Copyright 2026 Glass Browser Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license.
++
++#include "chrome/browser/ui/views/frame/glass_vertical_tab_strip.h"
++
++#include "base/command_line.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser.h"
++#include "ui/gfx/animation/slide_animation.h"
++#include "ui/views/controls/webview/webview.h"
++#include "url/gurl.h"
++
++namespace glass {
++
++// ---------- GlassVerticalTabStrip ----------
++
++GlassVerticalTabStrip::GlassVerticalTabStrip(Browser* browser)
++    : browser_(browser) {
++  // Create WebView to host the vertical tabs UI
++  webview_ = AddChildView(std::make_unique<views::WebView>(
++      browser->profile()));
++
++  // Load the vertical tabs resource
++  // In production, this is a chrome:// URL served from the pak file.
++  // For development, use a file:// URL.
++  webview_->LoadInitialURL(
++      GURL("chrome://glass-browser/sidebar/vertical-tabs.html"));
++
++  // Start collapsed
++  current_width_ = kCollapsedWidth;
++  SetPreferredSize(gfx::Size(current_width_, 0));
++
++  // Set the background to transparent so glass effect shows through
++  SetBackground(nullptr);
++}
++
++GlassVerticalTabStrip::~GlassVerticalTabStrip() = default;
++
++gfx::Size GlassVerticalTabStrip::CalculatePreferredSize() const {
++  return gfx::Size(current_width_, parent()->height());
++}
++
++void GlassVerticalTabStrip::Layout() {
++  if (webview_) {
++    webview_->SetBoundsRect(GetLocalBounds());
++  }
++}
++
++void GlassVerticalTabStrip::OnMouseEntered(const ui::MouseEvent& event) {
++  if (!is_expanded_) {
++    SetExpanded(true);
++  }
++}
++
++void GlassVerticalTabStrip::OnMouseExited(const ui::MouseEvent& event) {
++  if (is_expanded_) {
++    SetExpanded(false);
++  }
++}
++
++void GlassVerticalTabStrip::SetExpanded(bool expanded) {
++  if (is_expanded_ == expanded)
++    return;
++
++  is_expanded_ = expanded;
++  int target = expanded ? kExpandedWidth : kCollapsedWidth;
++  AnimateWidth(target);
++}
++
++void GlassVerticalTabStrip::AnimateWidth(int target_width) {
++  // Simple linear interpolation for the width animation.
++  // In a full implementation, use gfx::SlideAnimation for spring-based
++  // easing that matches the CSS cubic-bezier(0.25, 1, 0.5, 1) curve.
++  current_width_ = target_width;
++  PreferredSizeChanged();
++
++  // Notify the webview of the state change
++  if (webview_ && webview_->web_contents()) {
++    std::string js = is_expanded_ ?
++        "document.getElementById('tab-sidebar').classList.remove('collapsed');" :
++        "document.getElementById('tab-sidebar').classList.add('collapsed');";
++    webview_->web_contents()->GetPrimaryMainFrame()->ExecuteJavaScript(
++        base::UTF8ToUTF16(js), base::DoNothing());
++  }
++}
++
++void GlassVerticalTabStrip::ToggleClaudePanel() {
++  claude_panel_open_ = !claude_panel_open_;
++  // Dispatch event to the webview
++  if (webview_ && webview_->web_contents()) {
++    webview_->web_contents()->GetPrimaryMainFrame()->ExecuteJavaScript(
++        u"window.dispatchEvent(new CustomEvent('glass:toggle-claude-panel'));",
++        base::DoNothing());
++  }
++}
++
++// ---------- GlassClaudePanel ----------
++
++GlassClaudePanel::GlassClaudePanel(Browser* browser)
++    : browser_(browser) {
++  webview_ = AddChildView(std::make_unique<views::WebView>(
++      browser->profile()));
++
++  webview_->LoadInitialURL(
++      GURL("chrome://glass-browser/sidebar/claude-panel.html"));
++
++  SetBackground(nullptr);
++  SetVisible(false);
++}
++
++GlassClaudePanel::~GlassClaudePanel() = default;
++
++gfx::Size GlassClaudePanel::CalculatePreferredSize() const {
++  return gfx::Size(kPanelWidth, parent() ? parent()->height() : 600);
++}
++
++void GlassClaudePanel::Layout() {
++  if (webview_) {
++    webview_->SetBoundsRect(GetLocalBounds());
++  }
++}
++
++void GlassClaudePanel::Show() {
++  is_visible_ = true;
++  SetVisible(true);
++  if (webview_ && webview_->web_contents()) {
++    webview_->web_contents()->GetPrimaryMainFrame()->ExecuteJavaScript(
++        u"document.getElementById('claude-panel').classList.remove('hidden');",
++        base::DoNothing());
++  }
++  InvalidateLayout();
++}
++
++void GlassClaudePanel::Hide() {
++  is_visible_ = false;
++  if (webview_ && webview_->web_contents()) {
++    webview_->web_contents()->GetPrimaryMainFrame()->ExecuteJavaScript(
++        u"document.getElementById('claude-panel').classList.add('hidden');",
++        base::DoNothing());
++  }
++  // Delay hiding the view to allow CSS animation to complete
++  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
++      FROM_HERE,
++      base::BindOnce([](GlassClaudePanel* panel) {
++        if (!panel->is_visible_)
++          panel->SetVisible(false);
++      }, base::Unretained(this)),
++      base::Milliseconds(250));
++}
++
++}  // namespace glass

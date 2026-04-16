@@ -1,0 +1,596 @@
+/* ==========================================================================
+   Glass Browser — Vertical Tab Sidebar
+   Design: Apple Glass morphism with collapsible interaction
+   ========================================================================== */
+
+/* ---------- Reset ---------- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --glass-bg: rgba(28, 28, 30, 0.82);
+  --glass-bg-hover: rgba(44, 44, 46, 0.85);
+  --glass-bg-active: rgba(58, 58, 60, 0.88);
+  --glass-bg-elevated: rgba(38, 38, 40, 0.90);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.14);
+  --glass-blur: 32px;
+  --glass-saturate: 180%;
+
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-tertiary: rgba(255, 255, 255, 0.35);
+  --text-accent: #64D2FF;
+
+  --accent-blue: #0A84FF;
+  --accent-teal: #64D2FF;
+  --accent-green: #30D158;
+  --accent-orange: #FF9F0A;
+  --accent-red: #FF453A;
+  --accent-purple: #BF5AF2;
+  --accent-pink: #FF375F;
+  --accent-yellow: #FFD60A;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 100px;
+
+  --sidebar-width-expanded: 280px;
+  --sidebar-width-collapsed: 52px;
+
+  --font-system: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+                  'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-expand: 280ms;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-system);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+/* ---------- Sidebar Container ---------- */
+#tab-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sidebar-width-expanded);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: width var(--duration-expand) var(--ease-out);
+  overflow: hidden;
+}
+
+/* Collapsed state */
+#tab-sidebar.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+/* Expand on hover when collapsed */
+#tab-sidebar.collapsed:hover {
+  width: var(--sidebar-width-expanded);
+}
+
+/* Subtle top highlight for glass depth */
+#tab-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ---------- Sidebar Header ---------- */
+#sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px 8px;
+  flex-shrink: 0;
+  /* macOS: account for traffic light buttons */
+  padding-top: 40px;
+}
+
+/* ---------- Action Buttons ---------- */
+.sidebar-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-system);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 36px;
+}
+
+.sidebar-action-btn:hover {
+  background: var(--glass-bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-action-btn:active {
+  background: var(--glass-bg-active);
+  transform: scale(0.97);
+}
+
+.sidebar-action-btn svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-label {
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--ease-out);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#tab-sidebar.collapsed .sidebar-label {
+  opacity: 0;
+  width: 0;
+}
+
+#tab-sidebar.collapsed:hover .sidebar-label {
+  opacity: 1;
+  width: auto;
+}
+
+/* ---------- Tab Search ---------- */
+#tab-search-wrap {
+  padding: 4px 8px 8px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+#tab-search {
+  width: 100%;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-system);
+  font-size: 12px;
+  outline: none;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+#tab-search::placeholder {
+  color: var(--text-tertiary);
+}
+
+#tab-search:focus {
+  border-color: rgba(100, 210, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#tab-sidebar.collapsed #tab-search-wrap {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+#tab-sidebar.collapsed:hover #tab-search-wrap {
+  opacity: 1;
+  height: auto;
+  padding: 4px 8px 8px;
+  pointer-events: auto;
+}
+
+/* ---------- Tab Groups Container ---------- */
+#tab-groups-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8px;
+}
+
+/* Custom scrollbar */
+#tab-groups-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+#tab-groups-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#tab-groups-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 4px;
+}
+
+#tab-groups-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ---------- Tab Group ---------- */
+.tab-group {
+  margin-bottom: 4px;
+}
+
+.tab-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tab-group-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.group-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.group-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.group-collapse-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.tab-group.collapsed .group-collapse-btn {
+  transform: rotate(-90deg);
+}
+
+.tab-group-items {
+  overflow: hidden;
+  transition: max-height var(--duration-normal) var(--ease-out);
+}
+
+.tab-group.collapsed .tab-group-items {
+  max-height: 0 !important;
+}
+
+/* ---------- Tab Item ---------- */
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 24px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  min-height: 34px;
+}
+
+.tab-item:hover {
+  background: var(--glass-bg-hover);
+}
+
+.tab-item:active {
+  background: var(--glass-bg-active);
+}
+
+.tab-item.active {
+  background: rgba(10, 132, 255, 0.12);
+  border-left: 2px solid var(--accent-blue);
+  padding-left: 22px;
+}
+
+.tab-item.active .tab-title {
+  color: var(--text-primary);
+}
+
+/* Active indicator glow */
+.tab-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-blue);
+  box-shadow: 0 0 8px rgba(10, 132, 255, 0.4);
+}
+
+.tab-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tab-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/* In collapsed state, hide titles */
+#tab-sidebar.collapsed .tab-title {
+  opacity: 0;
+}
+
+#tab-sidebar.collapsed:hover .tab-title {
+  opacity: 1;
+}
+
+.tab-close-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all var(--duration-fast) var(--ease-out);
+  line-height: 1;
+}
+
+.tab-item:hover .tab-close-btn {
+  opacity: 1;
+}
+
+.tab-close-btn:hover {
+  background: rgba(255, 69, 58, 0.2);
+  color: var(--accent-red);
+}
+
+/* Loading indicator on tab */
+.tab-item.loading .tab-favicon {
+  animation: tabLoading 1s linear infinite;
+}
+
+@keyframes tabLoading {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+/* Audio indicator */
+.tab-audio-indicator {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--accent-teal);
+  animation: audioWave 1.2s ease-in-out infinite;
+}
+
+@keyframes audioWave {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ---------- Pinned Tabs ---------- */
+#pinned-tabs-section {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-top: 1px solid var(--glass-border);
+}
+
+#pinned-tabs-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+#pinned-tabs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* In collapsed mode, show pinned tabs as a grid of favicons */
+#tab-sidebar.collapsed #pinned-tabs-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+#tab-sidebar.collapsed .pinned-tab {
+  padding: 6px;
+}
+
+#tab-sidebar.collapsed .pinned-tab .tab-title {
+  display: none;
+}
+
+#tab-sidebar.collapsed:hover #pinned-tabs-list {
+  flex-direction: column;
+}
+
+#tab-sidebar.collapsed:hover .pinned-tab .tab-title {
+  display: block;
+}
+
+.pinned-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pinned-tab:hover {
+  background: var(--glass-bg-hover);
+}
+
+/* ---------- Sidebar Footer ---------- */
+#sidebar-footer {
+  flex-shrink: 0;
+  padding: 8px;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ---------- Drag & Drop ---------- */
+.tab-item.dragging {
+  opacity: 0.5;
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.tab-item.drag-over {
+  border-top: 2px solid var(--accent-blue);
+  padding-top: 4px;
+}
+
+.tab-group.drag-target .tab-group-header {
+  background: rgba(10, 132, 255, 0.08);
+  border: 1px dashed rgba(10, 132, 255, 0.3);
+}
+
+/* ---------- Context Menu ---------- */
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 180px;
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid var(--glass-border-hover);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  animation: contextMenuIn 150ms var(--ease-out);
+}
+
+@keyframes contextMenuIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  border: none;
+  background: none;
+  width: 100%;
+  font-family: var(--font-system);
+}
+
+.context-menu-item:hover {
+  background: rgba(10, 132, 255, 0.15);
+}
+
+.context-menu-item.danger {
+  color: var(--accent-red);
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(255, 69, 58, 0.15);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--glass-border);
+  margin: 4px 8px;
+}
+
+/* ---------- Collapsed state helpers ---------- */
+#tab-sidebar.collapsed .group-name,
+#tab-sidebar.collapsed .group-count,
+#tab-sidebar.collapsed .group-collapse-btn,
+#tab-sidebar.collapsed #pinned-tabs-header span {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+#tab-sidebar.collapsed:hover .group-name,
+#tab-sidebar.collapsed:hover .group-count,
+#tab-sidebar.collapsed:hover .group-collapse-btn,
+#tab-sidebar.collapsed:hover #pinned-tabs-header span {
+  opacity: 1;
+  width: auto;
+}

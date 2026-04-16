@@ -1,0 +1,120 @@
+--- /dev/null
++++ a/chrome/browser/themes/glass_theme_provider.h
+@@ -0,0 +1,72 @@
++// Copyright 2026 Glass Browser Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license.
++
++#ifndef CHROME_BROWSER_THEMES_GLASS_THEME_PROVIDER_H_
++#define CHROME_BROWSER_THEMES_GLASS_THEME_PROVIDER_H_
++
++#include "chrome/browser/themes/theme_service.h"
++#include "third_party/skia/include/core/SkColor.h"
++
++namespace glass {
++
++// GlassThemeProvider applies the Glass Browser dark theme system-wide.
++//
++// Design philosophy:
++//   - Dark surfaces with translucent glass effects
++//   - Apple's layered transparency model (5 elevation levels)
++//   - Subtle borders for "glass edge" depth perception
++//   - System accent colors matching Apple's dark mode palette
++//
++// Color system inspired by:
++//   Jony Ive: "True simplicity is derived from so much more than
++//              just the absence of clutter."
++//   Dieter Rams: "Good design is as little design as possible."
++
++class GlassThemeProvider {
++ public:
++  // Core surface colors — 5 elevation levels
++  static constexpr SkColor kSurface0 = SkColorSetARGB(0xF2, 0x00, 0x00, 0x00);
++  static constexpr SkColor kSurface1 = SkColorSetARGB(0xB8, 0x1C, 0x1C, 0x1E);
++  static constexpr SkColor kSurface2 = SkColorSetARGB(0xC7, 0x26, 0x26, 0x28);
++  static constexpr SkColor kSurface3 = SkColorSetARGB(0xD1, 0x30, 0x30, 0x32);
++  static constexpr SkColor kSurface4 = SkColorSetARGB(0xE0, 0x3A, 0x3A, 0x3C);
++  static constexpr SkColor kSurface5 = SkColorSetARGB(0xEB, 0x48, 0x48, 0x4A);
++
++  // Text colors — 4-level hierarchy
++  static constexpr SkColor kTextPrimary    = SkColorSetARGB(0xEB, 0xFF, 0xFF, 0xFF);
++  static constexpr SkColor kTextSecondary  = SkColorSetARGB(0x8C, 0xFF, 0xFF, 0xFF);
++  static constexpr SkColor kTextTertiary   = SkColorSetARGB(0x59, 0xFF, 0xFF, 0xFF);
++  static constexpr SkColor kTextQuaternary = SkColorSetARGB(0x2E, 0xFF, 0xFF, 0xFF);
++
++  // Accent colors — Apple dark mode system palette
++  static constexpr SkColor kAccentBlue   = SkColorSetRGB(0x0A, 0x84, 0xFF);
++  static constexpr SkColor kAccentTeal   = SkColorSetRGB(0x64, 0xD2, 0xFF);
++  static constexpr SkColor kAccentGreen  = SkColorSetRGB(0x30, 0xD1, 0x58);
++  static constexpr SkColor kAccentOrange = SkColorSetRGB(0xFF, 0x9F, 0x0A);
++  static constexpr SkColor kAccentRed    = SkColorSetRGB(0xFF, 0x45, 0x3A);
++  static constexpr SkColor kAccentPurple = SkColorSetRGB(0xBF, 0x5A, 0xF2);
++
++  // Border colors
++  static constexpr SkColor kBorderSubtle   = SkColorSetARGB(0x0F, 0xFF, 0xFF, 0xFF);
++  static constexpr SkColor kBorderDefault  = SkColorSetARGB(0x14, 0xFF, 0xFF, 0xFF);
++  static constexpr SkColor kBorderEmphasis = SkColorSetARGB(0x1F, 0xFF, 0xFF, 0xFF);
++
++  // Claude brand color
++  static constexpr SkColor kClaudePrimary = SkColorSetRGB(0xD4, 0xA5, 0x74);
++
++  // Apply Glass theme to the given ThemeService
++  static void ApplyGlassTheme(ThemeService* theme_service);
++
++  // Get color for a specific Chrome theme property
++  static SkColor GetColor(int id);
++
++  // Corner radius for UI elements (in dp)
++  static constexpr int kRadiusSmall  = 8;
++  static constexpr int kRadiusMedium = 12;
++  static constexpr int kRadiusLarge  = 16;
++  static constexpr int kRadiusXL     = 20;
++  static constexpr int kRadiusPill   = 100;
++
++  // Blur radii for glass effects (in px)
++  static constexpr int kBlurLight  = 12;
++  static constexpr int kBlurMedium = 24;
++  static constexpr int kBlurHeavy  = 40;
++  static constexpr int kBlurUltra  = 64;
++};
++
++}  // namespace glass
++
++#endif  // CHROME_BROWSER_THEMES_GLASS_THEME_PROVIDER_H_
+--- a/chrome/browser/ui/color/chrome_color_mixer.cc
++++ b/chrome/browser/ui/color/chrome_color_mixer.cc
+@@ -1,3 +1,4 @@
++// Glass Browser: Override Chromium's default color system with Glass dark theme
+ // Copyright 2019 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ -10,6 +11,30 @@
+
+ void AddChromeColorMixer(ui::ColorProvider* provider,
+                          const ui::ColorProviderKey& key) {
++  // Glass Browser dark theme overrides
++  // Apply translucent dark surfaces across all Chrome UI
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("glass-theme")) {
++    ui::ColorMixer& mixer = provider->AddMixer();
++
++    // Toolbar & frame
++    mixer[kColorToolbar] = {SkColorSetARGB(0xD1, 0x30, 0x30, 0x32)};
++    mixer[kColorToolbarText] = {SkColorSetARGB(0xEB, 0xFF, 0xFF, 0xFF)};
++    mixer[kColorFrameActive] = {SkColorSetARGB(0xF2, 0x00, 0x00, 0x00)};
++    mixer[kColorFrameInactive] = {SkColorSetARGB(0xF2, 0x00, 0x00, 0x00)};
++
++    // Omnibox
++    mixer[kColorOmniboxBackground] = {SkColorSetARGB(0xB8, 0x1C, 0x1C, 0x1E)};
++    mixer[kColorOmniboxText] = {SkColorSetARGB(0xEB, 0xFF, 0xFF, 0xFF)};
++    mixer[kColorOmniboxResultsBackground] = {SkColorSetARGB(0xE0, 0x3A, 0x3A, 0x3C)};
++
++    // Tab strip (hidden, but needed for compatibility)
++    mixer[kColorTabBackgroundActiveFrameActive] = {SkColorSetARGB(0xC7, 0x26, 0x26, 0x28)};
++    mixer[kColorTabForegroundActiveFrameActive] = {SkColorSetARGB(0xEB, 0xFF, 0xFF, 0xFF)};
++
++    // Bookmarks
++    mixer[kColorBookmarkBarBackground] = {SkColorSetARGB(0xC7, 0x26, 0x26, 0x28)};
++    mixer[kColorBookmarkBarForeground] = {SkColorSetARGB(0x8C, 0xFF, 0xFF, 0xFF)};
++    return;
++  }
++
+   // Original Chromium color mixing logic follows...

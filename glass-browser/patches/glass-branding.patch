@@ -1,0 +1,41 @@
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -1,3 +1,4 @@
++<!-- Glass Browser: Custom branding strings -->
+ <?xml version="1.0" encoding="utf-8"?>
+ <grit latest_public_release="0" current_release="1"
+       output_all_resource_defines="false">
+@@ -10,12 +11,12 @@
+     <messages fallback_to_english="true">
+       <!-- About dialog -->
+       <message name="IDS_PRODUCT_NAME" desc="Product name">
+-        Chromium
++        Glass Browser
+       </message>
+       <message name="IDS_SHORT_PRODUCT_NAME" desc="Short product name">
+-        Chromium
++        Glass
+       </message>
+       <message name="IDS_PRODUCT_DESCRIPTION" desc="Product description">
+-        Chromium is a web browser that runs web pages and applications with lightning speed.
++        Glass Browser is a privacy-focused web browser with an Apple Glass-inspired interface, vertical tabs, Claude AI integration, and Honey built in. Browse beautifully.
+       </message>
+
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,5 +1,5 @@
+-COMPANY_FULLNAME=The Chromium Authors
+-COMPANY_SHORTNAME=The Chromium Authors
+-PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
+-PRODUCT_INSTALLER_FULLNAME=Chromium Installer
++COMPANY_FULLNAME=Glass Browser Team
++COMPANY_SHORTNAME=Glass
++PRODUCT_FULLNAME=Glass Browser
++PRODUCT_SHORTNAME=Glass
++PRODUCT_INSTALLER_FULLNAME=Glass Browser Installer
+
+--- /dev/null
++++ a/chrome/app/theme/glass/product_logo_256.png
+@@ -0,0 +1 @@
++Binary file (Glass Browser logo — translucent glass sphere with teal gradient)

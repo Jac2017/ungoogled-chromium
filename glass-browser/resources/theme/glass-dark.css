@@ -1,0 +1,665 @@
+/* ==========================================================================
+   Glass Browser — Dark Glass Theme System
+
+   A comprehensive theming layer for Chromium's native UI elements.
+   Inspired by Apple's iOS 26 Glass design language with influences from:
+     - Jony Ive: Translucent depth, layered surfaces, haptic interaction
+     - Dieter Rams: "Less, but better" — clarity, honesty, unobtrusiveness
+
+   This file defines:
+     1. CSS custom properties (design tokens) for the entire Glass theme
+     2. Chrome UI element overrides (toolbar, omnibox, bookmarks, menus)
+     3. Glass morphism effects (backdrop-filter, layered transparency)
+     4. Animation and transition system
+     5. Component-level styles (buttons, inputs, dropdowns, toggles)
+
+   Usage:
+     Applied via Chromium's custom CSS injection system or as a theme
+     extension manifest with CSS overrides.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. DESIGN TOKENS — The foundation of the Glass design system
+   ========================================================================== */
+:root {
+  /* ---- Surface Colors ---- */
+  /* Glass layers increase in opacity as they elevate above the background.
+     This creates a natural sense of depth — Ive's "layers of light." */
+  --glass-base:          rgba(0, 0, 0, 0.95);
+  --glass-surface-1:     rgba(28, 28, 30, 0.72);     /* Background panels */
+  --glass-surface-2:     rgba(38, 38, 40, 0.78);     /* Cards, sidebars */
+  --glass-surface-3:     rgba(48, 48, 50, 0.82);     /* Toolbars, headers */
+  --glass-surface-4:     rgba(58, 58, 60, 0.88);     /* Elevated: popovers, menus */
+  --glass-surface-5:     rgba(72, 72, 74, 0.92);     /* Highest elevation: modals */
+
+  /* Hover & Active state modifiers */
+  --glass-hover:         rgba(255, 255, 255, 0.04);
+  --glass-active:        rgba(255, 255, 255, 0.08);
+  --glass-selected:      rgba(10, 132, 255, 0.12);
+
+  /* ---- Borders ---- */
+  /* Subtle light borders create the "glass edge" effect */
+  --border-subtle:       rgba(255, 255, 255, 0.06);
+  --border-default:      rgba(255, 255, 255, 0.08);
+  --border-emphasis:     rgba(255, 255, 255, 0.12);
+  --border-strong:       rgba(255, 255, 255, 0.18);
+  --border-accent:       rgba(10, 132, 255, 0.4);
+
+  /* ---- Text ---- */
+  /* Apple's text hierarchy: primary → secondary → tertiary → quaternary */
+  --text-primary:        rgba(255, 255, 255, 0.92);
+  --text-secondary:      rgba(255, 255, 255, 0.55);
+  --text-tertiary:       rgba(255, 255, 255, 0.35);
+  --text-quaternary:     rgba(255, 255, 255, 0.18);
+  --text-inverse:        rgba(0, 0, 0, 0.85);
+
+  /* ---- Accent Palette ---- */
+  /* Apple's system color palette for dark mode */
+  --blue:                #0A84FF;
+  --blue-hover:          #409CFF;
+  --teal:                #64D2FF;
+  --green:               #30D158;
+  --orange:              #FF9F0A;
+  --red:                 #FF453A;
+  --purple:              #BF5AF2;
+  --pink:                #FF375F;
+  --yellow:              #FFD60A;
+  --indigo:              #5E5CE6;
+
+  /* ---- Claude Brand ---- */
+  --claude-primary:      #D4A574;
+  --claude-secondary:    #E0B88A;
+  --claude-bg:           rgba(212, 165, 116, 0.08);
+
+  /* ---- Glass Effects ---- */
+  --blur-light:          12px;
+  --blur-medium:         24px;
+  --blur-heavy:          40px;
+  --blur-ultra:          64px;
+  --saturate:            180%;
+
+  /* ---- Radii — Apple's capsule language ---- */
+  /* Rams: "Good design is as little design as possible."
+     Rounded corners soften the interface, making it feel approachable. */
+  --radius-xs:           4px;
+  --radius-sm:           8px;
+  --radius-md:           12px;
+  --radius-lg:           16px;
+  --radius-xl:           20px;
+  --radius-2xl:          28px;
+  --radius-pill:         100px;     /* Full capsule */
+  --radius-circle:       50%;
+
+  /* ---- Spacing Scale ---- */
+  --space-1:             4px;
+  --space-2:             8px;
+  --space-3:             12px;
+  --space-4:             16px;
+  --space-5:             20px;
+  --space-6:             24px;
+  --space-8:             32px;
+  --space-10:            40px;
+  --space-12:            48px;
+  --space-16:            64px;
+
+  /* ---- Typography ---- */
+  --font-display:        -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                         'Segoe UI Variable Display', 'Helvetica Neue', sans-serif;
+  --font-text:           -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+                         'Segoe UI Variable Text', 'Helvetica Neue', sans-serif;
+  --font-mono:           'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+
+  --text-xs:             11px;
+  --text-sm:             13px;
+  --text-base:           15px;
+  --text-lg:             17px;
+  --text-xl:             20px;
+  --text-2xl:            24px;
+  --text-3xl:            30px;
+
+  --weight-regular:      400;
+  --weight-medium:       500;
+  --weight-semibold:     600;
+  --weight-bold:         700;
+
+  /* ---- Shadows ---- */
+  --shadow-xs:           0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm:           0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md:           0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg:           0 16px 48px rgba(0, 0, 0, 0.45);
+  --shadow-xl:           0 24px 64px rgba(0, 0, 0, 0.55);
+  --shadow-glow-blue:    0 0 20px rgba(10, 132, 255, 0.2);
+  --shadow-glow-teal:    0 0 16px rgba(100, 210, 255, 0.15);
+
+  /* ---- Motion ---- */
+  /* Apple's spring-based animation curves */
+  --ease-default:        cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring:         cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce:         cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-smooth:         cubic-bezier(0.4, 0, 0.2, 1);
+
+  --duration-instant:    80ms;
+  --duration-fast:       150ms;
+  --duration-normal:     250ms;
+  --duration-slow:       400ms;
+  --duration-slower:     600ms;
+}
+
+/* ==========================================================================
+   2. CHROME UI OVERRIDES — Toolbar, Omnibox, Bookmarks
+   ========================================================================== */
+
+/* ---- Main Browser Frame ---- */
+body,
+#browser,
+.browser-frame {
+  background: var(--glass-base) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-text) !important;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+/* ---- Toolbar ---- */
+#toolbar-container,
+.toolbar,
+#toolbar {
+  background: var(--glass-surface-3) !important;
+  backdrop-filter: blur(var(--blur-heavy)) saturate(var(--saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--blur-heavy)) saturate(var(--saturate)) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  box-shadow: none !important;
+  padding: var(--space-2) var(--space-3) !important;
+}
+
+/* Top highlight for depth */
+#toolbar::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 1px !important;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent) !important;
+  pointer-events: none !important;
+}
+
+/* ---- Omnibox / Address Bar ---- */
+#omnibox,
+.omnibox-container,
+#urlbar,
+.url-bar {
+  background: var(--glass-surface-1) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-pill) !important;
+  padding: var(--space-2) var(--space-4) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-text) !important;
+  font-size: var(--text-sm) !important;
+  transition: all var(--duration-fast) var(--ease-default) !important;
+  box-shadow: none !important;
+}
+
+#omnibox:focus,
+.omnibox-container:focus-within,
+#urlbar:focus-within {
+  background: var(--glass-surface-2) !important;
+  border-color: var(--border-accent) !important;
+  box-shadow: var(--shadow-glow-blue) !important;
+}
+
+/* ---- Navigation Buttons ---- */
+.nav-button,
+#back-button,
+#forward-button,
+#reload-button,
+#home-button {
+  background: transparent !important;
+  border: none !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text-secondary) !important;
+  padding: var(--space-2) !important;
+  transition: all var(--duration-fast) var(--ease-default) !important;
+  cursor: pointer !important;
+}
+
+.nav-button:hover,
+#back-button:hover,
+#forward-button:hover,
+#reload-button:hover {
+  background: var(--glass-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+.nav-button:active {
+  background: var(--glass-active) !important;
+  transform: scale(0.94) !important;
+}
+
+/* ---- Tab Strip (hidden — replaced by vertical sidebar) ---- */
+#tabstrip,
+.tab-strip,
+.tabstrip {
+  display: none !important;
+}
+
+/* ---- Bookmark Bar ---- */
+#bookmarks-bar,
+.bookmark-bar {
+  background: var(--glass-surface-2) !important;
+  backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate)) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: var(--space-1) var(--space-3) !important;
+}
+
+.bookmark-button,
+.bookmark-bar-item {
+  background: transparent !important;
+  border: none !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text-secondary) !important;
+  font-size: var(--text-xs) !important;
+  padding: var(--space-1) var(--space-2) !important;
+  transition: all var(--duration-fast) var(--ease-default) !important;
+}
+
+.bookmark-button:hover {
+  background: var(--glass-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ==========================================================================
+   3. GLASS MORPHISM EFFECTS
+   ========================================================================== */
+
+/* Reusable glass surface mixin classes */
+.glass-surface-1 {
+  background: var(--glass-surface-1);
+  backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate));
+  -webkit-backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate));
+  border: 1px solid var(--border-default);
+}
+
+.glass-surface-2 {
+  background: var(--glass-surface-2);
+  backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate));
+  -webkit-backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate));
+  border: 1px solid var(--border-default);
+}
+
+.glass-surface-elevated {
+  background: var(--glass-surface-4);
+  backdrop-filter: blur(var(--blur-heavy)) saturate(var(--saturate));
+  -webkit-backdrop-filter: blur(var(--blur-heavy)) saturate(var(--saturate));
+  border: 1px solid var(--border-emphasis);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Inner highlight for "glass edge" on all glass surfaces */
+.glass-highlight::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ==========================================================================
+   4. ANIMATION SYSTEM
+   ========================================================================== */
+
+/* Shared transitions */
+.glass-transition {
+  transition-property: background, border-color, box-shadow, color, opacity, transform;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-default);
+}
+
+/* Hover lift */
+.glass-hover-lift {
+  transition: transform var(--duration-normal) var(--ease-default),
+              box-shadow var(--duration-normal) var(--ease-default);
+}
+
+.glass-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Press scale */
+.glass-press {
+  transition: transform var(--duration-instant) var(--ease-default);
+}
+
+.glass-press:active {
+  transform: scale(0.97);
+}
+
+/* Fade in */
+@keyframes glass-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Slide up */
+@keyframes glass-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scale in (for modals/popovers) */
+@keyframes glass-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ==========================================================================
+   5. COMPONENT STYLES
+   ========================================================================== */
+
+/* ---- Buttons ---- */
+.glass-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border: none;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-default);
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass-btn-primary {
+  background: var(--blue);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-5);
+}
+
+.glass-btn-primary:hover {
+  background: var(--blue-hover);
+  transform: scale(1.02);
+}
+
+.glass-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.glass-btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-5);
+}
+
+.glass-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--border-emphasis);
+}
+
+.glass-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.glass-btn-ghost:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+}
+
+.glass-btn-icon {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-circle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-default);
+}
+
+.glass-btn-icon:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+}
+
+/* ---- Inputs ---- */
+.glass-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-default);
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass-input::placeholder {
+  color: var(--text-quaternary);
+}
+
+.glass-input:focus {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+}
+
+.glass-input-pill {
+  border-radius: var(--radius-pill);
+  padding: var(--space-3) var(--space-5);
+}
+
+/* ---- Toggle Switch (Apple-style) ---- */
+.glass-toggle {
+  position: relative;
+  display: inline-block;
+  width: 51px;
+  height: 31px;
+  cursor: pointer;
+}
+
+.glass-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.glass-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-normal) var(--ease-default);
+}
+
+.glass-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  background: #fff;
+  border-radius: var(--radius-circle);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+
+.glass-toggle input:checked + .glass-toggle-track {
+  background: var(--green);
+}
+
+.glass-toggle input:checked + .glass-toggle-track::after {
+  transform: translateX(20px);
+}
+
+/* ---- Dropdown / Select ---- */
+.glass-select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-8) var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.35)' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color var(--duration-fast) var(--ease-default);
+}
+
+.glass-select:focus {
+  border-color: var(--border-accent);
+}
+
+.glass-select option {
+  background: #1c1c1e;
+  color: #fff;
+}
+
+/* ---- Chip / Tag (Capsule) ---- */
+.glass-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-default);
+  user-select: none;
+}
+
+.glass-chip:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
+}
+
+.glass-chip.active {
+  background: rgba(10, 132, 255, 0.15);
+  border-color: rgba(10, 132, 255, 0.3);
+  color: var(--blue);
+}
+
+/* ---- Card ---- */
+.glass-card {
+  background: var(--glass-surface-1);
+  backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate));
+  -webkit-backdrop-filter: blur(var(--blur-medium)) saturate(var(--saturate));
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--duration-normal) var(--ease-default);
+}
+
+.glass-card:hover {
+  background: var(--glass-surface-2);
+  border-color: var(--border-emphasis);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---- Popover / Menu ---- */
+.glass-popover {
+  background: var(--glass-surface-4);
+  backdrop-filter: blur(var(--blur-ultra)) saturate(200%);
+  -webkit-backdrop-filter: blur(var(--blur-ultra)) saturate(200%);
+  border: 1px solid var(--border-emphasis);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: var(--space-1);
+  animation: glass-scale-in var(--duration-fast) var(--ease-default);
+}
+
+.glass-popover-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--duration-instant);
+  border: none;
+  background: none;
+  width: 100%;
+  font-family: var(--font-text);
+}
+
+.glass-popover-item:hover {
+  background: var(--glass-selected);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ---- Selection ---- */
+::selection {
+  background: rgba(10, 132, 255, 0.3);
+  color: var(--text-primary);
+}
+
+/* ---- Focus Ring ---- */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   6. UTILITY CLASSES
+   ========================================================================== */
+.text-primary   { color: var(--text-primary) !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-tertiary  { color: var(--text-tertiary) !important; }
+.text-accent    { color: var(--teal) !important; }
+.text-blue      { color: var(--blue) !important; }
+.text-green     { color: var(--green) !important; }
+.text-red       { color: var(--red) !important; }
+
+.rounded-sm     { border-radius: var(--radius-sm) !important; }
+.rounded-md     { border-radius: var(--radius-md) !important; }
+.rounded-lg     { border-radius: var(--radius-lg) !important; }
+.rounded-xl     { border-radius: var(--radius-xl) !important; }
+.rounded-pill   { border-radius: var(--radius-pill) !important; }
