@@ -1,0 +1,361 @@
+# ==========================================================================
+# Glass Browser — Cloud Build via GitHub Actions
+#
+# Builds Glass Browser for macOS Apple Silicon entirely in the cloud.
+# No local disk space or compile time needed — GitHub does it all.
+#
+# How to trigger:
+#   1. Push this file to your repo
+#   2. Go to Actions tab on GitHub
+#   3. Click "Build Glass Browser" on the left
+#   4. Click "Run workflow" button
+#   5. Wait ~3-5 hours
+#   6. Download the finished .app from the Artifacts section
+#
+# Runner specs (free for public repos):
+#   - macOS 14 (Sonoma) on Apple Silicon
+#   - 14 CPU cores, 30 GB RAM, 150 GB SSD
+#   - 6-hour timeout per job
+# ==========================================================================
+
+name: Build Glass Browser
+
+# When does this run?
+# "workflow_dispatch" means you trigger it manually from the GitHub Actions tab.
+# You can also add "push: tags: ['*']" to auto-build on version tags.
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: 'Target architecture'
+        required: true
+        default: 'arm64'
+        type: choice
+        options:
+          - arm64
+          - x64
+
+jobs:
+  # ==========================================================================
+  # JOB 1: Download source, apply patches, start compiling
+  # This does steps 1-7 of the build script, then starts ninja.
+  # If ninja finishes within the time limit, great! If not, Job 2 continues.
+  # ==========================================================================
+  build-phase-1:
+    name: "Phase 1 — Download, Patch, & Compile"
+    runs-on: macos-14   # Free Apple Silicon runner!
+    timeout-minutes: 350 # ~5.8 hours (just under the 6h GitHub limit)
+
+    steps:
+      # --- Check out your Glass Browser repo ---
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --- Show system info (helpful for debugging) ---
+      - name: System info
+        run: |
+          echo "=== Machine Info ==="
+          uname -a
+          sysctl -n hw.ncpu
+          sysctl -n hw.memsize | awk '{print $0/1073741824 " GB RAM"}'
+          df -h /
+          echo ""
+          echo "=== Xcode Version ==="
+          xcode-select -p
+          xcodebuild -version
+
+      # --- Install build dependencies ---
+      - name: Install dependencies
+        run: |
+          # ninja is the build system Chromium uses
+          brew install ninja
+
+      # --- Set up Python (Chromium's build tools need it) ---
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # --- Disable Spotlight indexing (saves CPU during build) ---
+      - name: Disable Spotlight
+        run: sudo mdutil -a -i off
+
+      # --- Download Chromium source code (~3 GB compressed) ---
+      - name: Download Chromium source
+        run: |
+          echo "Downloading Chromium source..."
+          CHROMIUM_VERSION=$(cat chromium_version.txt)
+          echo "Version: $CHROMIUM_VERSION"
+
+          mkdir -p build
+          python3 utils/downloads.py retrieve -c build/cache -i downloads.ini
+          python3 utils/downloads.py unpack -c build/cache -i downloads.ini build
+
+          echo "Source unpacked. Removing cache to free disk space..."
+          rm -rf build/cache
+          df -h /
+
+      # --- Prune Google's pre-built binaries ---
+      - name: Prune binaries
+        run: |
+          python3 utils/prune_binaries.py build/src pruning.list
+
+      # --- Apply ungoogled-chromium privacy patches ---
+      - name: Apply base patches
+        run: |
+          python3 utils/patches.py apply build/src patches
+
+      # --- Apply Glass Browser UI patches ---
+      - name: Apply Glass Browser patches
+        run: |
+          GLASS_DIR="glass-browser"
+          SRC_DIR="build/src"
+
+          # List of Glass-specific patches to apply
+          GLASS_PATCHES=(
+            "$GLASS_DIR/patches/glass-branding.patch"
+            "$GLASS_DIR/patches/glass-dark-theme.patch"
+            "$GLASS_DIR/patches/glass-vertical-tabs.patch"
+            "$GLASS_DIR/patches/glass-ntp-and-defaults.patch"
+            "$GLASS_DIR/patches/glass-honey-extension.patch"
+            "$GLASS_DIR/patches/glass-webui-handler.patch"
+            "$GLASS_DIR/patches/glass-resources-integration.patch"
+          )
+
+          for patch_file in "${GLASS_PATCHES[@]}"; do
+            if [ -f "$patch_file" ]; then
+              echo "Applying: $(basename "$patch_file")"
+              cd "$SRC_DIR"
+              patch -p1 < "../../$patch_file" || echo "Warning: $(basename "$patch_file") may have already been applied"
+              cd ../..
+            else
+              echo "Warning: $patch_file not found, skipping"
+            fi
+          done
+
+      # --- Copy Glass Browser resources into Chromium source ---
+      - name: Install Glass resources
+        run: |
+          DST="build/src/chrome/browser/resources/glass-browser"
+          mkdir -p "$DST/newtab" "$DST/sidebar" "$DST/theme" "$DST/settings"
+
+          cp -r glass-browser/resources/newtab/*  "$DST/newtab/"
+          cp -r glass-browser/resources/sidebar/* "$DST/sidebar/"
+          cp -r glass-browser/resources/theme/*   "$DST/theme/"
+          cp -r glass-browser/resources/settings/* "$DST/settings/" 2>/dev/null || true
+          cp glass-browser/patches/glass-resources.grdp "$DST/"
+
+          echo "Resources installed."
+
+      # --- Apply domain substitution (replace Google domains) ---
+      - name: Domain substitution
+        run: |
+          python3 utils/domain_substitution.py apply \
+            -r domain_regex.list \
+            -f domain_substitution.list \
+            -c build/domsubcache.tar.gz \
+            build/src
+
+      # --- Generate build configuration ---
+      - name: Generate build files
+        run: |
+          cd build/src
+          OUT_DIR="out/Glass"
+          mkdir -p "$OUT_DIR"
+
+          # Merge base flags with Glass-specific flags
+          cat ../../flags.gn > "$OUT_DIR/args.gn"
+          echo "" >> "$OUT_DIR/args.gn"
+          cat ../../glass-browser/config/glass_flags.gn >> "$OUT_DIR/args.gn"
+
+          # Add platform-specific flags
+          cat >> "$OUT_DIR/args.gn" <<EOF
+
+          # GitHub Actions macOS build
+          target_os = "mac"
+          target_cpu = "${{ inputs.architecture }}"
+          EOF
+
+          # Bootstrap GN (Chromium's meta-build system) and generate ninja files
+          tools/gn/bootstrap/bootstrap.py -o "$OUT_DIR/gn" --skip-generate-buildfiles
+          "$OUT_DIR/gn" gen "$OUT_DIR"
+
+          echo "Build configuration generated."
+          cat "$OUT_DIR/args.gn"
+
+      # --- COMPILE! This is the big one. ---
+      - name: Build Glass Browser
+        id: build
+        run: |
+          cd build/src
+
+          echo "Starting build at $(date)"
+          echo "This will take 2-4 hours..."
+
+          # Use all available cores for maximum speed
+          # The "|| true" at the end means: if ninja gets killed by timeout,
+          # don't fail the whole job — we'll continue in Phase 2
+          ninja -C out/Glass chrome chromedriver 2>&1 | tail -20 && BUILD_DONE=true || BUILD_DONE=false
+
+          if [ "$BUILD_DONE" = true ]; then
+            echo "build_complete=true" >> $GITHUB_OUTPUT
+            echo "BUILD COMPLETE at $(date)!"
+          else
+            echo "build_complete=false" >> $GITHUB_OUTPUT
+            echo "Build not finished yet — will continue in Phase 2"
+          fi
+
+          # Show disk usage
+          df -h /
+
+      # --- Package the result if build completed ---
+      - name: Package Glass Browser
+        if: steps.build.outputs.build_complete == 'true'
+        run: |
+          cd build/src/out/Glass
+          echo "Packaging Glass Browser.app..."
+
+          # Create a compressed archive of the .app bundle
+          tar -czf ../../../../Glass-Browser-macOS-${{ inputs.architecture }}.tar.gz \
+            Chromium.app
+
+          echo "Package created!"
+          ls -lh ../../../../Glass-Browser-macOS-${{ inputs.architecture }}.tar.gz
+
+      # --- Upload the finished browser as a downloadable artifact ---
+      - name: Upload Glass Browser artifact
+        if: steps.build.outputs.build_complete == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Browser-macOS-${{ inputs.architecture }}
+          path: Glass-Browser-macOS-${{ inputs.architecture }}.tar.gz
+          retention-days: 30  # Available for download for 30 days
+
+      # --- If build didn't finish, save progress for Phase 2 ---
+      - name: Save build state for continuation
+        if: steps.build.outputs.build_complete != 'true'
+        run: |
+          echo "Saving build state..."
+          # Save the ninja build directory so Phase 2 can resume
+          cd build/src
+          tar -cf ../../build-state.tar out/Glass/.ninja* out/Glass/args.gn
+          echo "Build state saved."
+
+      - name: Upload build state
+        if: steps.build.outputs.build_complete != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-state-phase-1
+          path: build-state.tar
+          retention-days: 1
+
+      # --- Always upload build logs for debugging ---
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-phase-1
+          path: build/src/out/Glass/*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ==========================================================================
+  # JOB 2: Continue building if Phase 1 ran out of time
+  # This job only runs if Phase 1 didn't finish the compile.
+  # ==========================================================================
+  build-phase-2:
+    name: "Phase 2 — Continue Compiling (if needed)"
+    needs: build-phase-1
+    if: needs.build-phase-1.outputs.build_complete != 'true'
+    runs-on: macos-14
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install ninja
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Disable Spotlight
+        run: sudo mdutil -a -i off
+
+      # Re-download and set up source (artifacts can't hold 50GB+)
+      - name: Re-download Chromium source
+        run: |
+          mkdir -p build
+          python3 utils/downloads.py retrieve -c build/cache -i downloads.ini
+          python3 utils/downloads.py unpack -c build/cache -i downloads.ini build
+          rm -rf build/cache
+
+      - name: Re-apply patches
+        run: |
+          python3 utils/prune_binaries.py build/src pruning.list
+          python3 utils/patches.py apply build/src patches
+
+          for patch_file in glass-browser/patches/glass-*.patch; do
+            if [ -f "$patch_file" ]; then
+              cd build/src
+              patch -p1 < "../../$patch_file" 2>/dev/null || true
+              cd ../..
+            fi
+          done
+
+      - name: Re-install resources
+        run: |
+          DST="build/src/chrome/browser/resources/glass-browser"
+          mkdir -p "$DST/newtab" "$DST/sidebar" "$DST/theme" "$DST/settings"
+          cp -r glass-browser/resources/newtab/*  "$DST/newtab/"
+          cp -r glass-browser/resources/sidebar/* "$DST/sidebar/"
+          cp -r glass-browser/resources/theme/*   "$DST/theme/"
+          cp -r glass-browser/resources/settings/* "$DST/settings/" 2>/dev/null || true
+          cp glass-browser/patches/glass-resources.grdp "$DST/"
+
+      - name: Re-apply domain substitution
+        run: |
+          python3 utils/domain_substitution.py apply \
+            -r domain_regex.list \
+            -f domain_substitution.list \
+            -c build/domsubcache.tar.gz \
+            build/src
+
+      - name: Re-generate build files
+        run: |
+          cd build/src
+          mkdir -p out/Glass
+          cat ../../flags.gn > out/Glass/args.gn
+          echo "" >> out/Glass/args.gn
+          cat ../../glass-browser/config/glass_flags.gn >> out/Glass/args.gn
+          cat >> out/Glass/args.gn <<EOF
+
+          target_os = "mac"
+          target_cpu = "${{ inputs.architecture }}"
+          EOF
+          tools/gn/bootstrap/bootstrap.py -o out/Glass/gn --skip-generate-buildfiles
+          out/Glass/gn gen out/Glass
+
+      - name: Continue building
+        run: |
+          cd build/src
+          echo "Continuing build at $(date)"
+          ninja -C out/Glass chrome chromedriver
+          echo "BUILD COMPLETE at $(date)!"
+
+      - name: Package Glass Browser
+        run: |
+          cd build/src/out/Glass
+          tar -czf ../../../../Glass-Browser-macOS-${{ inputs.architecture }}.tar.gz \
+            Chromium.app
+          ls -lh ../../../../Glass-Browser-macOS-${{ inputs.architecture }}.tar.gz
+
+      - name: Upload Glass Browser artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Browser-macOS-${{ inputs.architecture }}
+          path: Glass-Browser-macOS-${{ inputs.architecture }}.tar.gz
+          retention-days: 30
