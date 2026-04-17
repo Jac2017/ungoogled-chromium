@@ -109,6 +109,8 @@ GLASS_PATCHES=(
   "$GLASS_DIR/patches/glass-vertical-tabs.patch"
   "$GLASS_DIR/patches/glass-ntp-and-defaults.patch"
   "$GLASS_DIR/patches/glass-honey-extension.patch"
+  "$GLASS_DIR/patches/glass-webui-handler.patch"        # WebUI handler for chrome://glass-* pages
+  "$GLASS_DIR/patches/glass-resources-integration.patch" # Integrates .grdp into browser_resources.grd
 )
 
 for patch in "${GLASS_PATCHES[@]}"; do
@@ -127,10 +129,15 @@ GLASS_RESOURCES_DST="$SRC_DIR/chrome/browser/resources/glass-browser"
 mkdir -p "$GLASS_RESOURCES_DST/newtab"
 mkdir -p "$GLASS_RESOURCES_DST/sidebar"
 mkdir -p "$GLASS_RESOURCES_DST/theme"
+mkdir -p "$GLASS_RESOURCES_DST/settings"
 
 cp -r "$GLASS_DIR/resources/newtab/"* "$GLASS_RESOURCES_DST/newtab/"
 cp -r "$GLASS_DIR/resources/sidebar/"* "$GLASS_RESOURCES_DST/sidebar/"
 cp -r "$GLASS_DIR/resources/theme/"* "$GLASS_RESOURCES_DST/theme/"
+cp -r "$GLASS_DIR/resources/settings/"* "$GLASS_RESOURCES_DST/settings/" 2>/dev/null || true
+
+# Copy the GRDP resource definition file into the resource tree
+cp "$GLASS_DIR/patches/glass-resources.grdp" "$GLASS_RESOURCES_DST/"
 
 echo "  Resources installed."
 
@@ -191,7 +198,7 @@ echo "  Output: $OUT_DIR/Glass Browser.app"
 echo "========================================"
 echo ""
 echo "  To run:"
-echo "    open '$OUT_DIR/Chromium.app' --args --glass-theme --glass-ntp --glass-default-bing"
+echo "    open '$OUT_DIR/Glass Browser.app' --args --glass-theme --glass-ntp --glass-default-bing"
 echo ""
 echo "  Command-line flags for Glass features:"
 echo "    --glass-theme           Enable Glass dark theme"

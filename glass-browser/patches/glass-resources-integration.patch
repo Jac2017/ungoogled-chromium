@@ -1,0 +1,12 @@
+--- a/chrome/browser/resources/browser_resources.grd
++++ b/chrome/browser/resources/browser_resources.grd
+@@ -28,6 +28,9 @@
+       <part file="bookmarks/bookmarks_resources.grdp" />
+       <part file="commander/commander_resources.grdp" />
+       <part file="download_shelf/download_shelf_resources.grdp" />
++
++      <!-- Glass Browser custom UI resources (NTP, sidebar, Claude panel, theme) -->
++      <part file="glass-browser/glass-resources.grdp" />
+     </structures>
+     <includes>
+       <!-- Common resources -->

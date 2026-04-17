@@ -469,9 +469,12 @@ const VerticalTabsController = {
       const tabId = tabEl.dataset.tabId;
       items.push(
         { label: 'Pin Tab', action: () => this.pinTab(tabId) },
-        { label: 'Duplicate Tab', action: () => {} },
+        // Duplicate Tab: creates a copy of the tab with the same URL
+        { label: 'Duplicate Tab', action: () => this.duplicateTab(tabId) },
         { separator: true },
-        { label: 'Move to New Group', action: () => {} },
+        // Move to New Group: pulls the tab out of its current group
+        // and creates a brand-new group containing just that tab
+        { label: 'Move to New Group', action: () => this.moveTabToNewGroup(tabId) },
         { separator: true },
         { label: 'Close Tab', action: () => this.closeTab(tabId), danger: true },
         { label: 'Close Other Tabs', action: () => this.closeOtherTabs(tabId), danger: true },
@@ -481,8 +484,12 @@ const VerticalTabsController = {
     if (groupEl) {
       const groupId = groupEl.closest('.tab-group')?.dataset.groupId;
       items.push(
-        { label: 'Rename Group', action: () => {} },
-        { label: 'Change Color', action: () => {} },
+        // Rename Group: shows an inline text input so the user can
+        // type a new name for the group header
+        { label: 'Rename Group', action: () => this.renameGroup(groupId) },
+        // Change Color: cycles to the next color in our Apple-inspired
+        // palette so the user can quickly differentiate groups
+        { label: 'Change Color', action: () => this.changeGroupColor(groupId) },
         { separator: true },
         { label: 'Close Group', action: () => this.closeGroup(groupId), danger: true },
       );
@@ -560,6 +567,163 @@ const VerticalTabsController = {
     }
 
     this.renderGroups();
+  },
+
+  /* ---------- Context-Menu Actions ---------- */
+
+  /**
+   * Duplicate Tab
+   * Creates a brand-new tab with the same URL and title, then
+   * places it right after the original inside the same group.
+   * In production this would call chrome.tabs.duplicate().
+   */
+  duplicateTab(tabId) {
+    // Find the original tab and its group
+    const original = this.tabs.find((t) => t.id === tabId);
+    if (!original) return;
+
+    // Create the duplicate with a unique id
+    const dup = {
+      ...original,
+      id: 't' + Date.now(),           // unique id for the new tab
+      title: original.title + ' (copy)',
+    };
+
+    // Insert the duplicate right after the original inside its group
+    this.groups.forEach((group) => {
+      const idx = group.tabs.findIndex((t) => t.id === tabId);
+      if (idx !== -1) {
+        group.tabs.splice(idx + 1, 0, dup);   // insert after original
+      }
+    });
+
+    // Also add to the flat tabs list
+    this.tabs.push(dup);
+    this.renderGroups();
+    this.setActiveTab(dup.id);
+
+    // In production: chrome.tabs.duplicate(parseInt(tabId));
+  },
+
+  /**
+   * Move Tab to New Group
+   * Pulls the tab out of whatever group it's in and creates a
+   * fresh group containing only that tab. The user can rename
+   * the group afterward via the "Rename Group" context action.
+   */
+  moveTabToNewGroup(tabId) {
+    // Find and remove from current group
+    let movedTab = null;
+    this.groups.forEach((group) => {
+      const idx = group.tabs.findIndex((t) => t.id === tabId);
+      if (idx !== -1) {
+        movedTab = group.tabs.splice(idx, 1)[0];
+      }
+    });
+    if (!movedTab) return;
+
+    // Pick the next unused color from the palette
+    const usedColors = new Set(this.groups.map((g) => g.color));
+    const nextColor = GROUP_COLORS.find((c) => !usedColors.has(c)) || GROUP_COLORS[0];
+
+    // Build a new group with a sensible default name
+    const newGroup = {
+      id: 'g' + Date.now(),
+      name: 'New Group',
+      color: nextColor,
+      tabs: [movedTab],
+      collapsed: false,
+    };
+    this.groups.push(newGroup);
+
+    // Remove any groups that are now empty
+    this.groups = this.groups.filter((g) => g.tabs.length > 0);
+    this.renderGroups();
+
+    // In production: chrome.tabGroups.update / chrome.tabs.group
+  },
+
+  /**
+   * Rename Group
+   * Replaces the group header text with an inline <input> so the
+   * user can type a new name. Pressing Enter or clicking away saves
+   * the new name; Escape cancels.
+   */
+  renameGroup(groupId) {
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) return;
+
+    // Find the header element in the DOM
+    const groupEl = document.querySelector(`.tab-group[data-group-id="${groupId}"]`);
+    if (!groupEl) return;
+    const nameEl = groupEl.querySelector('.group-name');
+    if (!nameEl) return;
+
+    // Replace the text node with an editable input
+    const input = document.createElement('input');
+    input.className = 'group-rename-input';
+    input.type = 'text';
+    input.value = group.name;
+
+    // Style the input to match the group header look
+    input.style.cssText = [
+      'background: rgba(255,255,255,0.08)',
+      'border: 1px solid rgba(255,255,255,0.2)',
+      'border-radius: 6px',
+      'color: inherit',
+      'font: inherit',
+      'padding: 2px 6px',
+      'width: 100%',
+      'outline: none',
+    ].join(';');
+
+    // Save handler — updates model + DOM
+    const save = () => {
+      const newName = input.value.trim() || group.name; // keep old name if blank
+      group.name = newName;
+      this.renderGroups(); // re-render cleans up the input naturally
+    };
+
+    // Cancel handler — just re-render without changing the name
+    const cancel = () => this.renderGroups();
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', save);
+
+    // Swap name text for the input and focus it
+    nameEl.textContent = '';
+    nameEl.appendChild(input);
+    input.focus();
+    input.select();
+  },
+
+  /**
+   * Change Group Color
+   * Cycles the group's color to the next one in the Apple-inspired
+   * palette. This gives a quick one-click way to differentiate
+   * groups without opening a full color picker.
+   */
+  changeGroupColor(groupId) {
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) return;
+
+    // Find where the current color sits in the palette
+    const currentIdx = GROUP_COLORS.indexOf(group.color);
+    // Move to the next color, wrapping around
+    const nextIdx = (currentIdx + 1) % GROUP_COLORS.length;
+    group.color = GROUP_COLORS[nextIdx];
+
+    // Update just the dot element for instant feedback (avoids full re-render flicker)
+    const groupEl = document.querySelector(`.tab-group[data-group-id="${groupId}"]`);
+    if (groupEl) {
+      const dot = groupEl.querySelector('.group-color-dot');
+      if (dot) dot.style.background = group.color;
+    }
+
+    // In production: chrome.tabGroups.update(groupId, { color: ... });
   },
 
   /* ---------- Event Listeners ---------- */

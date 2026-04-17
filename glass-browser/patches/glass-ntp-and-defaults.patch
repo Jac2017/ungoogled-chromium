@@ -5,9 +5,16 @@
  // Copyright 2012 The Chromium Authors
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
-@@ -50,6 +51,28 @@ void RegisterProfilePrefs(
+@@ -50,6 +51,30 @@ void RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
++  // ---------------------------------------------------------------
 +  // Glass Browser defaults
++  // These prefs are registered BEFORE Chromium's own prefs so that
++  // Glass values act as defaults. Chromium's RegisterProfilePrefs
++  // continues below and will NOT overwrite these because
++  // PrefRegistrySyncable skips already-registered keys.
++  // ---------------------------------------------------------------
++
 +  // Default search engine: Bing
 +  registry->RegisterStringPref("default_search_provider.search_url",
 +      "https://www.bing.com/search?q={searchTerms}");
@@ -34,7 +41,8 @@
 +  registry->RegisterBooleanPref("glass.feed.use_history", true);
 +  registry->RegisterBooleanPref("glass.feed.show_ads", true);
 +
-   // Original Chromium pref registration follows...
+   // Accessibility preferences.
+   registry->RegisterBooleanPref(
 
 --- a/chrome/browser/search/search_engine_choice_service.cc
 +++ b/chrome/browser/search/search_engine_choice_service.cc
@@ -43,8 +51,11 @@
  // Copyright 2023 The Chromium Authors
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
-@@ -20,6 +21,12 @@ void SearchEngineChoiceService::SetDefaultSearchEngine() {
-+  // Glass Browser: Use Bing as default search engine
+@@ -20,6 +21,18 @@ void SearchEngineChoiceService::SetDefaultSearchEngine() {
++  // Glass Browser: Use Bing as default search engine when the
++  // --glass-default-bing flag is present (set by glass_flags.gn).
++  // This runs before the normal engine-choice flow so users still
++  // see Bing pre-selected but can change it in Settings.
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch("glass-default-bing")) {
 +    TemplateURLData data;
 +    data.SetShortName(u"Bing");
@@ -57,7 +68,8 @@
 +    return;
 +  }
 +
-   // Original Chromium search engine selection follows...
+   // If the user hasn't made a search engine choice yet, show the
+   // search engine choice dialog.
 
 --- a/chrome/browser/ui/webui/ntp/new_tab_ui.cc
 +++ b/chrome/browser/ui/webui/ntp/new_tab_ui.cc
@@ -66,18 +78,25 @@
  // Copyright 2012 The Chromium Authors
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
-@@ -15,6 +16,15 @@
+@@ -15,6 +16,24 @@
 
  NewTabUI::NewTabUI(content::WebUI* web_ui) : content::WebUIController(web_ui) {
-+  // Glass Browser: Load custom New Tab Page with glass morphism UI
++  // Glass Browser: Load custom New Tab Page with glass morphism UI.
++  // The --glass-ntp flag is injected by glass_flags.gn so this path
++  // is only taken in Glass builds; vanilla Chromium falls through to
++  // the standard NTP setup below.
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch("glass-ntp")) {
 +    content::WebUIDataSource* source =
 +        content::WebUIDataSource::CreateAndAdd(
 +            web_ui->GetWebContents()->GetBrowserContext(), "glass-newtab");
++    // Serve glass-browser/resources/newtab/* as chrome://glass-newtab/
 +    source->AddResourcePath("", IDR_GLASS_NEWTAB_HTML);
 +    source->AddResourcePath("newtab.css", IDR_GLASS_NEWTAB_CSS);
 +    source->AddResourcePath("newtab.js", IDR_GLASS_NEWTAB_JS);
++    source->AddResourcePath("feed-service.js", IDR_GLASS_FEED_SERVICE_JS);
++    source->SetDefaultResource(IDR_GLASS_NEWTAB_HTML);
 +    return;
 +  }
 +
-   // Original Chromium NTP initialization follows...
+   // Use the regular NTP handler.
+   content::WebUIDataSource* source =

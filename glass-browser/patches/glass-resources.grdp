@@ -31,6 +31,11 @@
                type="chrome_html"
                preprocess="true" />
 
+    <structure name="IDR_GLASS_FEED_SERVICE_JS"
+               file="glass-browser/newtab/feed-service.js"
+               type="chrome_html"
+               preprocess="true" />
+
     <!-- ===== Vertical Tab Sidebar ===== -->
     <structure name="IDR_GLASS_VERTICAL_TABS_HTML"
                file="glass-browser/sidebar/vertical-tabs.html"

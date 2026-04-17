@@ -268,6 +268,16 @@ const FeedService = {
 
   /**
    * Inserts ad slots at configured intervals.
+   *
+   * Every Nth item in the feed is an AdSense ad block (configurable
+   * via FeedConfig.AD_FREQUENCY, default = every 4th position).
+   * Each ad slot includes the data needed by the rendering layer
+   * (newtab.js) to create and initialize the AdSense <ins> element.
+   *
+   * The AdSense publisher ID and slot IDs are loaded from
+   * chrome.storage.local so they can be configured in Settings
+   * without rebuilding. If no publisher ID is configured, the slot
+   * will render as a subtle placeholder.
    */
   _insertAdSlots(articles, showAds) {
     if (!showAds) {
@@ -286,9 +296,22 @@ const FeedService = {
         const adSlot = {
           type: 'ad',
           data: {
+            // Unique slot identifier for this position in the feed
             slot: `glass-feed-ad-${adIndex}`,
+            // AdSense display format — 'rectangle' maps to the
+            // responsive in-feed ad unit (300×250 or fluid)
             format: 'rectangle',
             provider: FeedConfig.AD_PROVIDER,
+            // These are used by newtab.js when creating <ins> elements:
+            adClient: '',   // populated at render time from storage
+            adSlotId: '',   // populated at render time from storage
+            // Style hints for the glass morphism container
+            style: {
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              overflow: 'hidden',
+            },
           },
         };
         result.push(adSlot);
@@ -301,6 +324,84 @@ const FeedService = {
   },
 
   /**
+   * Render a single AdSense ad slot into a DOM container.
+   * Call this from newtab.js for each ad-type feed item.
+   *
+   * @param {HTMLElement} container - the feed-item wrapper element
+   * @param {Object} adData - the ad slot data from _insertAdSlots
+   */
+  renderAdSlot(container, adData) {
+    // Try to load the publisher's AdSense config from storage
+    this._getAdSenseConfig().then((config) => {
+      if (!config.adClient) {
+        // No AdSense configured — show a subtle placeholder so
+        // the feed layout stays consistent
+        container.innerHTML = '';
+        const placeholder = document.createElement('div');
+        placeholder.className = 'ad-placeholder';
+        placeholder.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:center',
+          'min-height:150px', 'border-radius:16px',
+          'background:rgba(255,255,255,0.03)',
+          'border:1px dashed rgba(255,255,255,0.08)',
+          'color:rgba(255,255,255,0.25)', 'font-size:13px',
+        ].join(';');
+        placeholder.textContent = 'Ad';
+        container.appendChild(placeholder);
+        return;
+      }
+
+      // Create the standard AdSense <ins> element
+      const ins = document.createElement('ins');
+      ins.className = 'adsbygoogle';
+      ins.style.display = 'block';
+      ins.dataset.adClient = config.adClient;
+      ins.dataset.adSlot = config.slotIds[adData.slot] || config.defaultSlotId || '';
+      ins.dataset.adFormat = 'auto';
+      ins.dataset.fullWidthResponsive = 'true';
+
+      container.innerHTML = '';
+      container.appendChild(ins);
+
+      // Push to AdSense for rendering
+      try {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      } catch (e) {
+        console.warn('AdSense push failed:', e.message);
+      }
+    });
+  },
+
+  /**
+   * Load AdSense publisher config from chrome.storage.local.
+   * Keys: glass_adsense_client, glass_adsense_slots (JSON map)
+   */
+  async _getAdSenseConfig() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        return new Promise((resolve) => {
+          chrome.storage.local.get(
+            ['glass_adsense_client', 'glass_adsense_slots', 'glass_adsense_default_slot'],
+            (r) => resolve({
+              adClient: r.glass_adsense_client || '',
+              slotIds: r.glass_adsense_slots ? JSON.parse(r.glass_adsense_slots) : {},
+              defaultSlotId: r.glass_adsense_default_slot || '',
+            })
+          );
+        });
+      }
+      // Dev fallback
+      return {
+        adClient: localStorage.getItem('glass_adsense_client') || '',
+        slotIds: {},
+        defaultSlotId: '',
+      };
+    } catch {
+      return { adClient: '', slotIds: {}, defaultSlotId: '' };
+    }
+  },
+
+  /**
    * Returns a curated fallback feed when the API is unavailable.
    */
   _getFallbackFeed() {
@@ -308,12 +409,21 @@ const FeedService = {
     return this._insertAdSlots(articles, true);
   },
 
+  /**
+   * Fallback articles shown when the Bing News API is unavailable.
+   *
+   * Each article now includes a placeholder image URL using
+   * picsum.photos (a free, no-auth image CDN). In production these
+   * would be replaced by real thumbnail URLs from the API response.
+   * The seed parameter ensures each article gets a consistent but
+   * unique image across page loads.
+   */
   _getFallbackArticles() {
     return [
       {
         title: 'The Future of AI: How Large Language Models Are Reshaping Every Industry',
         publisher: 'MIT Technology Review',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-ai/400/225',
         url: 'https://www.bing.com/news/search?q=AI+future',
         publishedAt: '2 hours ago',
         category: 'Technology',
@@ -321,7 +431,7 @@ const FeedService = {
       {
         title: 'SpaceX Starship Completes Historic Orbital Flight with Full Recovery',
         publisher: 'Space.com',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-space/400/225',
         url: 'https://www.bing.com/news/search?q=SpaceX+Starship',
         publishedAt: '3 hours ago',
         category: 'Science',
@@ -329,7 +439,7 @@ const FeedService = {
       {
         title: 'Apple Vision Pro 2 Leaked: Thinner, Lighter, and More Affordable',
         publisher: 'The Verge',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-apple/400/225',
         url: 'https://www.bing.com/news/search?q=Apple+Vision+Pro',
         publishedAt: '4 hours ago',
         category: 'Technology',
@@ -337,7 +447,7 @@ const FeedService = {
       {
         title: 'Global Markets Rally as Central Banks Signal Rate Cuts Coming Soon',
         publisher: 'Bloomberg',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-finance/400/225',
         url: 'https://www.bing.com/news/search?q=global+markets',
         publishedAt: '5 hours ago',
         category: 'Finance',
@@ -345,7 +455,7 @@ const FeedService = {
       {
         title: 'Scientists Discover New Deep-Sea Species in the Mariana Trench',
         publisher: 'National Geographic',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-ocean/400/225',
         url: 'https://www.bing.com/news/search?q=deep+sea+discovery',
         publishedAt: '6 hours ago',
         category: 'Science',
@@ -353,7 +463,7 @@ const FeedService = {
       {
         title: 'Electric Vehicle Sales Surge Past 50% Market Share in Europe',
         publisher: 'Reuters',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-ev/400/225',
         url: 'https://www.bing.com/news/search?q=EV+sales+Europe',
         publishedAt: '7 hours ago',
         category: 'Automotive',
@@ -361,7 +471,7 @@ const FeedService = {
       {
         title: 'Revolutionary CRISPR Treatment Cures Inherited Blood Disorder',
         publisher: 'Nature Medicine',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-health/400/225',
         url: 'https://www.bing.com/news/search?q=CRISPR+treatment',
         publishedAt: '8 hours ago',
         category: 'Health',
@@ -369,7 +479,7 @@ const FeedService = {
       {
         title: 'The Best Running Shoes of 2026: Expert Reviews and Lab Tests',
         publisher: "Runner's World",
-        image: '',
+        image: 'https://picsum.photos/seed/glass-running/400/225',
         url: 'https://www.bing.com/news/search?q=best+running+shoes+2026',
         publishedAt: '9 hours ago',
         category: 'Fitness',
@@ -377,7 +487,7 @@ const FeedService = {
       {
         title: 'Japan Opens New Bullet Train Route Connecting Osaka to Hokkaido',
         publisher: 'Travel + Leisure',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-japan/400/225',
         url: 'https://www.bing.com/news/search?q=Japan+bullet+train',
         publishedAt: '10 hours ago',
         category: 'Travel',
@@ -385,7 +495,7 @@ const FeedService = {
       {
         title: 'Netflix Announces Interactive AI-Generated Shows Coming This Fall',
         publisher: 'Variety',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-netflix/400/225',
         url: 'https://www.bing.com/news/search?q=Netflix+AI+shows',
         publishedAt: '11 hours ago',
         category: 'Entertainment',
@@ -393,7 +503,7 @@ const FeedService = {
       {
         title: 'Climate Summit Reaches Historic Agreement on Carbon Emissions',
         publisher: 'BBC News',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-climate/400/225',
         url: 'https://www.bing.com/news/search?q=climate+summit',
         publishedAt: '12 hours ago',
         category: 'World News',
@@ -401,7 +511,7 @@ const FeedService = {
       {
         title: 'Quantum Computing Breakthrough: 1000-Qubit Processor Achieved',
         publisher: 'Wired',
-        image: '',
+        image: 'https://picsum.photos/seed/glass-quantum/400/225',
         url: 'https://www.bing.com/news/search?q=quantum+computing+breakthrough',
         publishedAt: '13 hours ago',
         category: 'Technology',
@@ -549,12 +659,61 @@ const BackgroundService = {
     }
 
     const scene = this.scenes[index];
+
+    // NOTE: source.unsplash.com was deprecated in 2024. We now use
+    // the Unsplash API (/photos/random) when an access key is
+    // configured, and fall back to picsum.photos (free, no-auth CDN)
+    // for zero-config first-run.
+    let imageUrl;
+    try {
+      const unsplashKey = await this._getUnsplashKey();
+      if (unsplashKey) {
+        // Use the real Unsplash API for high-quality, attributed images
+        const res = await fetch(
+          `https://api.unsplash.com/photos/random?query=${encodeURIComponent(scene.query)}&orientation=landscape&w=1920`,
+          { headers: { Authorization: `Client-ID ${unsplashKey}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          imageUrl = data.urls?.full || data.urls?.regular || '';
+        }
+      }
+    } catch {
+      // API failed — fall through to fallback
+    }
+
+    // Fallback: picsum.photos with a deterministic seed so each
+    // scene always gets the same image (good offline caching too)
+    if (!imageUrl) {
+      imageUrl = `https://picsum.photos/seed/${scene.id}/1920/1080`;
+    }
+
     return {
-      url: `https://source.unsplash.com/1920x1080/?${encodeURIComponent(scene.query)}`,
+      url: imageUrl,
       label: scene.label,
       id: scene.id,
       region: scene.region,
     };
+  },
+
+  /**
+   * Retrieve the Unsplash API access key from storage.
+   * Configured in Settings → Feed → Background Images.
+   * Returns null if none is set (picsum fallback will be used).
+   */
+  async _getUnsplashKey() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        return new Promise((resolve) => {
+          chrome.storage.local.get('glass_unsplash_key', (r) => {
+            resolve(r.glass_unsplash_key || null);
+          });
+        });
+      }
+      return localStorage.getItem('glass_unsplash_key') || null;
+    } catch {
+      return null;
+    }
   },
 };
 

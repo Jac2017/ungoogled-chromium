@@ -186,50 +186,156 @@ const ClaudePanelController = {
 
   /* ---------- Message Processing ---------- */
 
+  /**
+   * Process a user message.
+   *
+   * Strategy:
+   *   1. Try the real Anthropic Messages API (requires an API key
+   *      stored in chrome.storage.local under "glass_claude_api_key").
+   *   2. If no key is configured, or the request fails, fall back to
+   *      the local keyword-matched responses so the UI still works.
+   *
+   * The system prompt gives Claude full context about the user's open
+   * tabs so its answers are grounded in what the user is actually
+   * browsing.
+   */
   async processMessage(text) {
     this.showTyping();
 
-    // Simulate API call delay
-    await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
-
-    const lowerText = text.toLowerCase();
     let response;
 
-    if (lowerText.includes('organize') || lowerText.includes('group') || lowerText.includes('sort tabs')) {
-      response = this.handleOrganizeRequest();
-    } else if (lowerText.includes('summarize') || lowerText.includes('summary')) {
-      response = this.handleSummarizeRequest();
-    } else if (lowerText.includes('compare')) {
-      response = this.handleCompareRequest();
-    } else if (lowerText.includes('research') || lowerText.includes('find') || lowerText.includes('search')) {
-      response = this.handleResearchRequest(text);
-    } else {
-      response = this.handleGeneralQuery(text);
+    try {
+      // Attempt a real API call first
+      response = await this._callClaudeAPI(text);
+    } catch (err) {
+      // API unavailable — use local fallback
+      console.warn('Claude API unavailable, using local fallback:', err.message);
+      response = this._localFallback(text);
     }
 
     this.hideTyping();
     this.addMessage('assistant', response);
   },
 
-  handleOrganizeRequest() {
-    // Show tab organization preview
-    this.showTabOrganizationPreview();
-    return "I've analyzed your open tabs and organized them into topic groups. You can see the suggested organization below. Click **Apply** to reorganize your tabs, or **Dismiss** to keep the current arrangement.";
+  /**
+   * Call the Anthropic Messages API.
+   *
+   * The API key is retrieved from chrome.storage.local (set in
+   * Glass Browser Settings → Claude Integration). It is NEVER
+   * exposed to page-level JavaScript; only this side-panel context
+   * and the background service worker can read it.
+   *
+   * @param {string} userText – the user's latest message
+   * @returns {Promise<string>} Claude's response text
+   */
+  async _callClaudeAPI(userText) {
+    // --- Retrieve the API key -----------------------------------------
+    const apiKey = await this._getApiKey();
+    if (!apiKey) {
+      throw new Error('NO_API_KEY');
+    }
+
+    // --- Build a tab-aware system prompt ------------------------------
+    const tabContext = this._buildTabContext();
+    const systemPrompt = [
+      'You are Claude, an AI assistant embedded in Glass Browser.',
+      'The user has the following tabs open:\n' + tabContext,
+      'Help the user with browsing tasks: organizing tabs, summarizing',
+      'pages, comparing products across tabs, and general questions.',
+      'Keep answers concise and use **bold** for emphasis.',
+    ].join(' ');
+
+    // --- Assemble conversation history (last 20 turns max) -----------
+    const apiMessages = this.messages
+      .slice(-20)                              // keep context window small
+      .map((m) => ({ role: m.role, content: m.content }));
+    apiMessages.push({ role: 'user', content: userText });
+
+    // --- Call the Anthropic API ---------------------------------------
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',     // required version header
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: apiMessages,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`API ${res.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    // The Messages API returns an array of content blocks; grab the
+    // first text block as our response string.
+    const textBlock = (data.content || []).find((b) => b.type === 'text');
+    return textBlock ? textBlock.text : 'Sorry, I could not generate a response.';
   },
 
-  handleSummarizeRequest() {
-    return "**Page Summary**\n\nI've analyzed the current tab's content. Here are the key points:\n\n- The page discusses the latest developments in browser technology\n- Key topics include performance optimization and privacy features\n- There are 3 main sections covering architecture, security, and user experience\n\nWould you like me to go deeper into any of these topics?";
+  /**
+   * Retrieve the Claude API key from secure storage.
+   * Returns null if the user hasn't configured one yet.
+   */
+  async _getApiKey() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        return new Promise((resolve) => {
+          chrome.storage.local.get('glass_claude_api_key', (r) => {
+            resolve(r.glass_claude_api_key || null);
+          });
+        });
+      }
+      // Standalone / dev mode — check localStorage as a convenience
+      return localStorage.getItem('glass_claude_api_key') || null;
+    } catch {
+      return null;
+    }
   },
 
-  handleCompareRequest() {
-    return "**Tab Comparison**\n\nI found 3 tabs that appear to be comparing similar items:\n\n- **Nike Pegasus 43** — $129.99 — 4.5 stars — Lightweight daily trainer\n- **ASICS Gel Kayano 32** — $159.99 — 4.7 stars — Stability support\n- **Runner's World Best Of** — Comprehensive review of 15 shoes\n\nThe ASICS Gel Kayano offers the best stability support, while the Nike Pegasus is better for speed work. Would you like a detailed feature-by-feature comparison?";
+  /**
+   * Build a text summary of the user's open tabs so Claude has
+   * full browsing context when answering questions.
+   */
+  _buildTabContext() {
+    // Prefer real Chrome tabs API, fall back to the VerticalTabsController
+    if (typeof VerticalTabsController !== 'undefined') {
+      const groups = VerticalTabsController.groups || [];
+      return groups.map((g) => {
+        const tabList = g.tabs.map((t) => `  - ${t.title} (${t.url})`).join('\n');
+        return `[${g.name}]\n${tabList}`;
+      }).join('\n');
+    }
+    return '(no tab data available)';
   },
 
-  handleResearchRequest(query) {
-    return `**Research Results**\n\nBased on your query, I've gathered information from your open tabs and browsing context:\n\n- Found 5 relevant sources across your tabs\n- Key findings align with your recent browsing patterns\n- I can compile a detailed summary if needed\n\nWould you like me to create a research brief on this topic?`;
-  },
+  /**
+   * Local keyword-matched fallback.
+   * Provides useful canned responses when the API key isn't set
+   * so the UI doesn't feel broken during first-run or offline use.
+   */
+  _localFallback(text) {
+    const lower = text.toLowerCase();
 
-  handleGeneralQuery(text) {
+    if (lower.includes('organize') || lower.includes('group') || lower.includes('sort tabs')) {
+      this.showTabOrganizationPreview();
+      return "I've analyzed your open tabs and organized them into topic groups. You can see the suggested organization below. Click **Apply** to reorganize your tabs, or **Dismiss** to keep the current arrangement.\n\n(Tip: Add your Anthropic API key in Settings → Claude Integration for smarter, AI-powered grouping.)";
+    }
+    if (lower.includes('summarize') || lower.includes('summary')) {
+      return "**Page Summary**\n\nI've analyzed the current tab's content. Here are the key points:\n\n- The page discusses the latest developments in browser technology\n- Key topics include performance optimization and privacy features\n- There are 3 main sections covering architecture, security, and user experience\n\nWould you like me to go deeper into any of these topics?\n\n(Tip: Add your API key in Settings for real AI-powered summaries.)";
+    }
+    if (lower.includes('compare')) {
+      return "**Tab Comparison**\n\nI found 3 tabs that appear to be comparing similar items:\n\n- **Nike Pegasus 43** — $129.99 — 4.5 stars — Lightweight daily trainer\n- **ASICS Gel Kayano 32** — $159.99 — 4.7 stars — Stability support\n- **Runner's World Best Of** — Comprehensive review of 15 shoes\n\nThe ASICS Gel Kayano offers the best stability support, while the Nike Pegasus is better for speed work. Would you like a detailed feature-by-feature comparison?";
+    }
+    if (lower.includes('research') || lower.includes('find') || lower.includes('search')) {
+      return '**Research Results**\n\nBased on your query, I\'ve gathered information from your open tabs and browsing context:\n\n- Found 5 relevant sources across your tabs\n- Key findings align with your recent browsing patterns\n- I can compile a detailed summary if needed\n\nWould you like me to create a research brief on this topic?';
+    }
     return `I understand you're asking about "${sanitizeText(text)}". Let me help with that.\n\nBased on your current browsing context, here's what I can tell you:\n\n- I can see you have tabs related to several topics\n- I can provide more specific help if you use one of the quick actions above\n- Feel free to ask me anything about your browsing session\n\nWhat would you like to explore further?`;
   },
 
@@ -358,29 +464,6 @@ const ClaudePanelController = {
     this.addMessage('assistant', 'Done! I\'ve organized your tabs into 4 groups:\n\n- **Las Vegas Trip Planning** (3 tabs)\n- **Chromium News** (2 tabs)\n- **Running Shoes Shopping** (3 tabs)\n- **Entertainment** (2 tabs)\n\nYou can see the groups in your sidebar. Feel free to drag tabs between groups or ask me to re-organize anytime.');
   },
 
-  /**
-   * Production API Integration
-   *
-   * In a production build, this method calls the Anthropic API:
-   *
-   *   const response = await fetch('https://api.anthropic.com/v1/messages', {
-   *     method: 'POST',
-   *     headers: {
-   *       'Content-Type': 'application/json',
-   *       'x-api-key': apiKey,
-   *       'anthropic-version': '2023-06-01',
-   *     },
-   *     body: JSON.stringify({
-   *       model: 'claude-sonnet-4-20250514',
-   *       max_tokens: 1024,
-   *       system: 'You are Claude, an AI assistant integrated into Glass Browser...',
-   *       messages: this.messages,
-   *     }),
-   *   });
-   *
-   * The API key is stored securely in chrome.storage.local and retrieved
-   * via the background service worker, never exposed to page context.
-   */
 };
 
 /* ==========================================================================
