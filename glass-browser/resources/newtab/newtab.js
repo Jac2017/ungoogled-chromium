@@ -1,577 +1,375 @@
-/**
- * Glass Browser — New Tab Page
- *
- * Architecture:
- *   - BackgroundManager:  Rotates bucket-list travel/nature images
- *   - SearchController:   Handles Bing search input
- *   - BookmarkController: Renders and manages glass-style bookmark tiles
- *   - FeedController:     Discovery feed with personalization, ads, and auto-refresh
- *   - SettingsController: Manages feed preferences and topic selection
- *   - StorageManager:     Persistence layer using chrome.storage or localStorage
- *
- * Security notes:
- *   - All user-generated content is sanitized before DOM insertion
- *   - External URLs are validated before navigation
- *   - No inline event handlers — all listeners attached programmatically
- *   - CSP-compatible: no eval(), no inline scripts
- */
-
+/* Glass Browser — New Tab Page
+   Built against: REQUIREMENTS.md + STYLE-GUIDE.md
+   ────────────────────────────────────────────── */
 'use strict';
 
-/* ==========================================================================
-   Storage Manager
-   ========================================================================== */
-const StorageManager = {
-  _prefix: 'glass_',
-
-  get(key, fallback = null) {
-    try {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        return new Promise((resolve) => {
-          chrome.storage.local.get(this._prefix + key, (result) => {
-            resolve(result[this._prefix + key] ?? fallback);
-          });
-        });
-      }
-      const raw = localStorage.getItem(this._prefix + key);
-      return Promise.resolve(raw ? JSON.parse(raw) : fallback);
-    } catch {
-      return Promise.resolve(fallback);
-    }
-  },
-
-  set(key, value) {
-    try {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        return new Promise((resolve) => {
-          chrome.storage.local.set({ [this._prefix + key]: value }, resolve);
-        });
-      }
-      localStorage.setItem(this._prefix + key, JSON.stringify(value));
-      return Promise.resolve();
-    } catch {
-      return Promise.resolve();
-    }
-  },
+/* ═══════════════════════════════════════════════
+   SECURITY HELPERS  (REQ-SEC-1, SEC-2)
+   ═══════════════════════════════════════════════ */
+const esc = (s) => {
+  if (typeof s !== 'string') return '';
+  const d = document.createElement('span');
+  d.textContent = s;
+  return d.innerHTML;
+};
+const safeUrl = (u) => {
+  try { const p = new URL(u); return /^https?:$/.test(p.protocol) ? p.href : '#'; }
+  catch { return '#'; }
 };
 
-/* ==========================================================================
-   Text Sanitizer — prevent XSS in dynamic content
-   ========================================================================== */
-function sanitizeText(str) {
-  if (typeof str !== 'string') return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function sanitizeUrl(url) {
-  if (typeof url !== 'string') return '#';
-  try {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return '#';
-    return parsed.href;
-  } catch {
-    return '#';
+/* ═══════════════════════════════════════════════
+   STORAGE  (REQ-BM-9, REQ-FEED-14)
+   ═══════════════════════════════════════════════ */
+const S = {
+  get(k, d = null) {
+    try {
+      if (globalThis.chrome?.storage?.local)
+        return new Promise(r => chrome.storage.local.get('g_' + k, o => r(o['g_' + k] ?? d)));
+      const v = localStorage.getItem('g_' + k);
+      return Promise.resolve(v ? JSON.parse(v) : d);
+    } catch { return Promise.resolve(d); }
+  },
+  set(k, v) {
+    try {
+      if (globalThis.chrome?.storage?.local)
+        return new Promise(r => chrome.storage.local.set({ ['g_' + k]: v }, r));
+      localStorage.setItem('g_' + k, JSON.stringify(v));
+    } catch {}
+    return Promise.resolve();
   }
-}
+};
 
-/* ==========================================================================
-   Background Manager — Bucket-list travel & nature imagery
-   ========================================================================== */
-const BackgroundManager = {
-  // Curated collection of royalty-free travel/nature image keywords
-  // In production, these would be served from a CDN with pre-selected images
+/* ═══════════════════════════════════════════════
+   BOOKMARK DATA  (REQ-BM-4, REQ-BM-5, STYLE §1.6)
+   Brand gradient for each icon background
+   ═══════════════════════════════════════════════ */
+const DEFAULT_BM = [
+  { n:'Bing',      u:'https://www.bing.com',          g:'linear-gradient(135deg,#00897B,#00ACC1)' },
+  { n:'YouTube',   u:'https://www.youtube.com',       g:'linear-gradient(135deg,#E53935,#FF1744)' },
+  { n:'Gmail',     u:'https://mail.google.com',       g:'linear-gradient(135deg,#E64A19,#FF5722)' },
+  { n:'Reddit',    u:'https://www.reddit.com',        g:'linear-gradient(135deg,#FF5722,#FF9100)' },
+  { n:'GitHub',    u:'https://github.com',            g:'linear-gradient(135deg,#424242,#6D4C9F)' },
+  { n:'Wikipedia', u:'https://www.wikipedia.org',     g:'linear-gradient(135deg,#546E7A,#78909C)' },
+  { n:'Twitter',   u:'https://twitter.com',           g:'linear-gradient(135deg,#1565C0,#1E88E5)' },
+  { n:'Amazon',    u:'https://www.amazon.com',        g:'linear-gradient(135deg,#FF8F00,#FFB300)' },
+  { n:'Netflix',   u:'https://www.netflix.com',       g:'linear-gradient(135deg,#B71C1C,#E53935)' },
+  { n:'LinkedIn',  u:'https://www.linkedin.com',      g:'linear-gradient(135deg,#0277BD,#0288D1)' },
+  { n:'Maps',      u:'https://maps.google.com',       g:'linear-gradient(135deg,#2E7D32,#43A047)' },
+  { n:'News',      u:'https://news.bing.com',         g:'linear-gradient(135deg,#0D47A1,#1565C0)' },
+  { n:'Spotify',   u:'https://open.spotify.com',      g:'linear-gradient(135deg,#1B5E20,#2E7D32)' },
+  { n:'Translate', u:'https://translate.google.com',  g:'linear-gradient(135deg,#283593,#3F51B5)' },
+];
+
+/* ═══════════════════════════════════════════════
+   BACKGROUND MANAGER  (REQ-BG-1→6, STYLE §8.1)
+   Gradient is always visible. Photo is an optional
+   enhancement that loads on top.
+   ═══════════════════════════════════════════════ */
+const BG = {
   scenes: [
-    { query: 'northern-lights-iceland',      credit: 'Iceland Aurora Borealis' },
-    { query: 'santorini-greece-sunset',       credit: 'Santorini, Greece' },
-    { query: 'machu-picchu-peru',             credit: 'Machu Picchu, Peru' },
-    { query: 'bora-bora-french-polynesia',    credit: 'Bora Bora, French Polynesia' },
-    { query: 'swiss-alps-matterhorn',         credit: 'Swiss Alps' },
-    { query: 'great-barrier-reef-australia',  credit: 'Great Barrier Reef, Australia' },
-    { query: 'kyoto-bamboo-forest-japan',     credit: 'Kyoto, Japan' },
-    { query: 'patagonia-mountains',           credit: 'Patagonia, Argentina' },
-    { query: 'african-safari-elephant',       credit: 'African Safari' },
-    { query: 'amalfi-coast-italy',            credit: 'Amalfi Coast, Italy' },
-    { query: 'maldives-overwater-villa',      credit: 'Maldives' },
-    { query: 'grand-canyon-sunset',           credit: 'Grand Canyon, USA' },
-    { query: 'norwegian-fjords',              credit: 'Norwegian Fjords' },
-    { query: 'cherry-blossoms-japan',         credit: 'Cherry Blossoms, Japan' },
-    { query: 'banff-national-park-canada',    credit: 'Banff, Canada' },
-    { query: 'victoria-falls-zambia',         credit: 'Victoria Falls' },
-    { query: 'cappadocia-turkey-balloons',    credit: 'Cappadocia, Turkey' },
-    { query: 'new-zealand-milford-sound',     credit: 'Milford Sound, New Zealand' },
-    { query: 'petra-jordan',                  credit: 'Petra, Jordan' },
-    { query: 'aurora-borealis-norway',        credit: 'Northern Lights, Norway' },
+    'santorini+greece+sunset', 'northern+lights+iceland',
+    'machu+picchu+peru+mountains', 'swiss+alps+matterhorn',
+    'cappadocia+turkey+balloons', 'banff+national+park+canada',
+    'norwegian+fjords+landscape', 'african+safari+elephant+sunset',
+    'bora+bora+overwater+villa', 'patagonia+mountains+lake',
+    'kyoto+bamboo+forest+japan', 'amalfi+coast+italy+ocean',
   ],
-
   async init() {
-    const bgImage = document.getElementById('bg-image');
-    const lastIndex = await StorageManager.get('bg_index', -1);
-    const nextIndex = (lastIndex + 1) % this.scenes.length;
-
-    const scene = this.scenes[nextIndex];
-
-    // Use Unsplash source for high-quality travel/nature photos
-    // In production, replace with a curated CDN endpoint
-    const imageUrl = `https://source.unsplash.com/1920x1080/?${encodeURIComponent(scene.query)}`;
-
-    bgImage.alt = scene.credit;
-    bgImage.src = imageUrl;
-    bgImage.addEventListener('load', () => bgImage.classList.add('loaded'));
-    bgImage.addEventListener('error', () => {
-      // Fallback: use a CSS gradient if image fails to load
-      document.getElementById('background-layer').style.background =
-        'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 40%, #16213e 70%, #0f3460 100%)';
-      bgImage.style.display = 'none';
-    });
-
-    await StorageManager.set('bg_index', nextIndex);
-  },
+    const idx = ((await S.get('bg_i', -1)) + 1) % this.scenes.length;
+    await S.set('bg_i', idx);
+    const img = document.getElementById('bg-photo');
+    // REQ-BG-2: attempt to load a travel photo
+    img.src = `https://source.unsplash.com/1920x1080/?${this.scenes[idx]}`;
+    img.onload = () => img.classList.add('show');
+    // REQ-BG-6: if it fails the gradient is already visible — do nothing
+    img.onerror = () => {};
+  }
 };
 
-/* ==========================================================================
-   Search Controller — Bing-powered search
-   ========================================================================== */
-const SearchController = {
+/* ═══════════════════════════════════════════════
+   SEARCH  (REQ-SEARCH-1→7)
+   ═══════════════════════════════════════════════ */
+const Search = {
   init() {
-    const input = document.getElementById('search-input');
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && input.value.trim()) {
-        const query = encodeURIComponent(input.value.trim());
-        window.location.href = `https://www.bing.com/search?q=${query}`;
-      }
+    const inp = document.getElementById('search-input');
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && inp.value.trim())
+        location.href = 'https://www.bing.com/search?q=' + encodeURIComponent(inp.value.trim());
     });
-
-    // Focus search on any keypress when not in an input
-    document.addEventListener('keydown', (e) => {
-      if (
-        e.target === input ||
-        e.target.tagName === 'INPUT' ||
-        e.target.tagName === 'TEXTAREA' ||
-        e.target.tagName === 'SELECT' ||
-        e.metaKey || e.ctrlKey || e.altKey
-      ) return;
-
-      if (e.key.length === 1) {
-        input.focus();
-      }
+    // REQ-SEARCH-6: any key auto-focuses search
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
+          e.target.tagName === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.length === 1) inp.focus();
     });
-  },
+  }
 };
 
-/* ==========================================================================
-   Bookmark Controller
-   ========================================================================== */
-const BookmarkController = {
-  defaultBookmarks: [
-    { name: 'Bing',       url: 'https://www.bing.com',           icon: 'B' },
-    { name: 'YouTube',    url: 'https://www.youtube.com',        icon: 'Y' },
-    { name: 'Gmail',      url: 'https://mail.google.com',        icon: 'G' },
-    { name: 'Reddit',     url: 'https://www.reddit.com',         icon: 'R' },
-    { name: 'GitHub',     url: 'https://github.com',             icon: 'H' },
-    { name: 'Wikipedia',  url: 'https://www.wikipedia.org',      icon: 'W' },
-    { name: 'Twitter',    url: 'https://twitter.com',            icon: 'X' },
-    { name: 'Amazon',     url: 'https://www.amazon.com',         icon: 'A' },
-    { name: 'Netflix',    url: 'https://www.netflix.com',        icon: 'N' },
-    { name: 'LinkedIn',   url: 'https://www.linkedin.com',       icon: 'L' },
-    { name: 'Maps',       url: 'https://maps.google.com',       icon: 'M' },
-    { name: 'News',       url: 'https://news.bing.com',         icon: 'N' },
-    { name: 'Spotify',    url: 'https://open.spotify.com',      icon: 'S' },
-    { name: 'Translate',  url: 'https://translate.google.com',  icon: 'T' },
-  ],
-
+/* ═══════════════════════════════════════════════
+   BOOKMARKS  (REQ-BM-1→10)
+   ═══════════════════════════════════════════════ */
+const Bookmarks = {
   async init() {
-    const bookmarks = await StorageManager.get('bookmarks', this.defaultBookmarks);
-    this.render(bookmarks);
-    this.setupEditModal(bookmarks);
+    const bm = await S.get('bm', DEFAULT_BM);
+    this.render(bm);
+    this.editSetup(bm);
   },
 
-  render(bookmarks) {
+  render(list) {
     const grid = document.getElementById('bookmarks-grid');
     grid.innerHTML = '';
+    list.forEach(b => {
+      const a = document.createElement('a');
+      a.className = 'bm-tile';
+      a.href = safeUrl(b.u);
 
-    bookmarks.forEach((bm) => {
-      const tile = document.createElement('a');
-      tile.className = 'bookmark-tile';
-      tile.href = sanitizeUrl(bm.url);
-      tile.title = sanitizeText(bm.name);
+      // REQ-BM-3: colored icon container
+      const icon = document.createElement('div');
+      icon.className = 'bm-icon';
+      icon.style.background = b.g || 'linear-gradient(135deg,#37474f,#455a64)';
 
-      const faviconWrap = document.createElement('div');
-      faviconWrap.className = 'bookmark-favicon';
-
-      // Use Google's favicon service for real favicons
       const img = document.createElement('img');
-      const domain = new URL(sanitizeUrl(bm.url)).hostname;
-      img.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=48`;
+      const host = (() => { try { return new URL(safeUrl(b.u)).hostname; } catch { return ''; } })();
+      img.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
       img.alt = '';
       img.loading = 'lazy';
-      img.addEventListener('error', () => {
-        // Fallback: show initial letter
-        img.style.display = 'none';
+      img.onerror = () => {
+        img.remove();
         const letter = document.createElement('span');
-        letter.textContent = bm.icon || bm.name.charAt(0).toUpperCase();
-        letter.style.cssText = 'font-size:18px;font-weight:600;color:rgba(255,255,255,0.5);';
-        faviconWrap.appendChild(letter);
-      });
-      faviconWrap.appendChild(img);
+        letter.className = 'bm-letter';
+        letter.textContent = (b.n || '?')[0];
+        icon.appendChild(letter);
+      };
+      icon.appendChild(img);
 
       const label = document.createElement('span');
-      label.className = 'bookmark-label';
-      label.textContent = bm.name;
+      label.className = 'bm-label';
+      label.textContent = b.n;
 
-      tile.appendChild(faviconWrap);
-      tile.appendChild(label);
-      grid.appendChild(tile);
+      a.appendChild(icon);
+      a.appendChild(label);
+      grid.appendChild(a);
     });
   },
 
-  setupEditModal(bookmarks) {
-    const openBtn = document.getElementById('bookmarks-edit-btn');
-    const modal = document.getElementById('bookmark-edit-modal');
-    const closeBtn = document.getElementById('bookmark-edit-close');
-    const saveBtn = document.getElementById('bookmark-edit-save');
-    const addBtn = document.getElementById('bookmark-add-btn');
-    const list = document.getElementById('bookmark-edit-list');
+  editSetup(bookmarks) {
+    const openBtn = document.getElementById('bm-edit-btn');
+    const modal = document.getElementById('bm-modal');
+    const closeBtn = document.getElementById('bm-close');
+    const saveBtn = document.getElementById('bm-save');
+    const addBtn = document.getElementById('bm-add');
+    const list = document.getElementById('bm-edit-list');
+    let data;
 
-    let editData = JSON.parse(JSON.stringify(bookmarks));
-
-    const renderEditList = () => {
+    const renderList = () => {
       list.innerHTML = '';
-      editData.forEach((bm, i) => {
-        const item = document.createElement('div');
-        item.className = 'bookmark-edit-item';
-
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.value = bm.name;
-        nameInput.placeholder = 'Name';
-        nameInput.addEventListener('input', () => { editData[i].name = nameInput.value; });
-
-        const urlInput = document.createElement('input');
-        urlInput.type = 'text';
-        urlInput.value = bm.url;
-        urlInput.placeholder = 'URL';
-        urlInput.addEventListener('input', () => { editData[i].url = urlInput.value; });
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'delete-btn';
-        delBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-        delBtn.addEventListener('click', () => {
-          editData.splice(i, 1);
-          renderEditList();
-        });
-
-        item.appendChild(nameInput);
-        item.appendChild(urlInput);
-        item.appendChild(delBtn);
-        list.appendChild(item);
+      data.forEach((b, i) => {
+        const row = document.createElement('div');
+        row.className = 'bm-edit-row';
+        const ni = document.createElement('input');
+        ni.value = b.n; ni.placeholder = 'Name';
+        ni.oninput = () => { data[i].n = ni.value; };
+        const ui = document.createElement('input');
+        ui.value = b.u; ui.placeholder = 'https://...';
+        ui.oninput = () => { data[i].u = ui.value; };
+        const del = document.createElement('button');
+        del.className = 'bm-edit-del'; del.textContent = '×';
+        del.onclick = () => { data.splice(i, 1); renderList(); };
+        row.append(ni, ui, del);
+        list.appendChild(row);
       });
     };
 
-    openBtn.addEventListener('click', () => {
-      editData = JSON.parse(JSON.stringify(bookmarks));
-      renderEditList();
-      modal.style.display = 'flex';
-    });
-
-    closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.style.display = 'none';
-    });
-
-    addBtn.addEventListener('click', () => {
-      editData.push({ name: '', url: 'https://', icon: '?' });
-      renderEditList();
-    });
-
-    saveBtn.addEventListener('click', async () => {
-      const valid = editData.filter((bm) => bm.name.trim() && bm.url.trim());
-      await StorageManager.set('bookmarks', valid);
+    openBtn.onclick = () => {
+      data = JSON.parse(JSON.stringify(bookmarks));
+      renderList();
+      modal.hidden = false;
+    };
+    closeBtn.onclick = () => modal.hidden = true;
+    modal.onclick = e => { if (e.target === modal) modal.hidden = true; };
+    addBtn.onclick = () => {
+      data.push({ n: '', u: 'https://', g: 'linear-gradient(135deg,#37474f,#455a64)' });
+      renderList();
+    };
+    saveBtn.onclick = async () => {
+      const valid = data.filter(b => b.n.trim() && b.u.trim());
+      await S.set('bm', valid);
       this.render(valid);
-      modal.style.display = 'none';
-    });
-  },
+      bookmarks = valid;
+      modal.hidden = true;
+    };
+  }
 };
 
-/* ==========================================================================
-   Feed Controller — Discovery feed with personalization & ads
-   ========================================================================== */
-const FeedController = {
-  // Available topics for personalization
+/* ═══════════════════════════════════════════════
+   FEED  (REQ-FEED-1→15, STYLE §8.2)
+   ═══════════════════════════════════════════════ */
+
+// §8.2 category-specific placeholder gradients
+const CAT_GRAD = {
+  Technology:    'linear-gradient(135deg,#1a237e,#283593)',
+  Science:       'linear-gradient(135deg,#004d40,#00695c)',
+  Business:      'linear-gradient(135deg,#1b5e20,#2e7d32)',
+  Entertainment: 'linear-gradient(135deg,#4a148c,#6a1b9a)',
+  Sports:        'linear-gradient(135deg,#b71c1c,#c62828)',
+  Travel:        'linear-gradient(135deg,#01579b,#0277bd)',
+  Health:        'linear-gradient(135deg,#00838f,#00acc1)',
+  Finance:       'linear-gradient(135deg,#33691e,#558b2f)',
+  Automotive:    'linear-gradient(135deg,#263238,#37474f)',
+  Fitness:       'linear-gradient(135deg,#e65100,#ef6c00)',
+  default:       'linear-gradient(135deg,#37474f,#455a64)',
+};
+
+const CAT_ICON = {
+  Technology: '💻', Science: '🔬', Business: '📊', Entertainment: '🎬',
+  Sports: '⚽', Travel: '✈️', Health: '🩺', Finance: '📈',
+  Automotive: '🚗', Fitness: '🏃', default: '📰',
+};
+
+const ARTICLES = [
+  { t:'The Future of AI: How Large Language Models Are Reshaping Every Industry', p:'MIT Technology Review', c:'Technology', h:'2h ago' },
+  { t:'SpaceX Starship Completes Historic Orbital Flight with Full Recovery', p:'Space.com', c:'Science', h:'3h ago' },
+  { t:'Apple Vision Pro 2 Leaked: Thinner, Lighter, and More Affordable', p:'The Verge', c:'Technology', h:'4h ago' },
+  { t:'Global Markets Rally as Central Banks Signal Rate Cuts Coming Soon', p:'Bloomberg', c:'Finance', h:'5h ago' },
+  { t:'Scientists Discover New Deep-Sea Species in the Mariana Trench', p:'National Geographic', c:'Science', h:'6h ago' },
+  { t:'Electric Vehicle Sales Surge Past 50% Market Share in Europe', p:'Reuters', c:'Automotive', h:'7h ago' },
+  { t:'Revolutionary CRISPR Treatment Cures Inherited Blood Disorder', p:'Nature Medicine', c:'Health', h:'8h ago' },
+  { t:'The Best Running Shoes of 2026: Expert Reviews and Lab Tests', p:"Runner's World", c:'Fitness', h:'9h ago' },
+  { t:'Japan Opens New Bullet Train Route Connecting Osaka to Hokkaido', p:'Travel + Leisure', c:'Travel', h:'10h ago' },
+  { t:'Netflix Announces Interactive AI-Generated Shows Coming This Fall', p:'Variety', c:'Entertainment', h:'11h ago' },
+  { t:'Climate Summit Reaches Historic Agreement on Carbon Emissions', p:'BBC News', c:'Science', h:'12h ago' },
+  { t:'Quantum Computing Breakthrough: 1000-Qubit Processor Achieved', p:'Wired', c:'Technology', h:'13h ago' },
+];
+
+const Feed = {
   topics: [
-    'Technology', 'Science', 'Business', 'Entertainment', 'Sports',
-    'Health', 'Travel', 'Food', 'Gaming', 'Fashion',
-    'Politics', 'World News', 'Finance', 'AI & Machine Learning',
-    'Space', 'Automotive', 'Music', 'Movies', 'Crypto', 'Fitness',
+    'Technology','Science','Business','Entertainment','Sports',
+    'Health','Travel','Food','Gaming','Fashion',
+    'Politics','World News','Finance','AI & ML','Space',
+    'Automotive','Music','Movies','Crypto','Fitness',
   ],
-
-  // Simulated articles — in production, sourced from a news aggregation API
-  // using browsing history signals for personalization
-  sampleArticles: [
-    {
-      title: 'The Future of AI: How Large Language Models Are Reshaping Every Industry',
-      publisher: 'MIT Technology Review',
-      image: 'https://source.unsplash.com/600x400/?artificial-intelligence',
-      url: 'https://www.bing.com/news/search?q=AI+future',
-      time: '2 hours ago',
-    },
-    {
-      title: 'SpaceX Starship Completes Historic Orbital Flight with Full Recovery',
-      publisher: 'Space.com',
-      image: 'https://source.unsplash.com/600x400/?spacex-rocket',
-      url: 'https://www.bing.com/news/search?q=SpaceX+Starship',
-      time: '3 hours ago',
-    },
-    {
-      title: 'Apple Vision Pro 2 Leaked: Thinner, Lighter, and More Affordable',
-      publisher: 'The Verge',
-      image: 'https://source.unsplash.com/600x400/?apple-vr-headset',
-      url: 'https://www.bing.com/news/search?q=Apple+Vision+Pro',
-      time: '4 hours ago',
-    },
-    {
-      title: 'Global Markets Rally as Central Banks Signal Rate Cuts Coming Soon',
-      publisher: 'Bloomberg',
-      image: 'https://source.unsplash.com/600x400/?stock-market',
-      url: 'https://www.bing.com/news/search?q=global+markets',
-      time: '5 hours ago',
-    },
-    {
-      title: 'Scientists Discover New Deep-Sea Species in the Mariana Trench',
-      publisher: 'National Geographic',
-      image: 'https://source.unsplash.com/600x400/?deep-sea-creatures',
-      url: 'https://www.bing.com/news/search?q=deep+sea+discovery',
-      time: '6 hours ago',
-    },
-    {
-      title: 'Electric Vehicle Sales Surge Past 50% Market Share in Europe',
-      publisher: 'Reuters',
-      image: 'https://source.unsplash.com/600x400/?electric-car',
-      url: 'https://www.bing.com/news/search?q=EV+sales+Europe',
-      time: '7 hours ago',
-    },
-    {
-      title: 'Revolutionary CRISPR Treatment Cures Inherited Blood Disorder',
-      publisher: 'Nature Medicine',
-      image: 'https://source.unsplash.com/600x400/?dna-genetics',
-      url: 'https://www.bing.com/news/search?q=CRISPR+treatment',
-      time: '8 hours ago',
-    },
-    {
-      title: 'The Best Running Shoes of 2026: Expert Reviews and Lab Tests',
-      publisher: "Runner's World",
-      image: 'https://source.unsplash.com/600x400/?running-shoes',
-      url: 'https://www.bing.com/news/search?q=best+running+shoes+2026',
-      time: '9 hours ago',
-    },
-    {
-      title: 'Japan Opens New Bullet Train Route Connecting Osaka to Hokkaido',
-      publisher: 'Travel + Leisure',
-      image: 'https://source.unsplash.com/600x400/?japan-bullet-train',
-      url: 'https://www.bing.com/news/search?q=Japan+bullet+train',
-      time: '10 hours ago',
-    },
-    {
-      title: 'Netflix Announces Interactive AI-Generated Shows Coming This Fall',
-      publisher: 'Variety',
-      image: 'https://source.unsplash.com/600x400/?streaming-tv',
-      url: 'https://www.bing.com/news/search?q=Netflix+AI+shows',
-      time: '11 hours ago',
-    },
-    {
-      title: 'Climate Summit Reaches Historic Agreement on Carbon Emissions',
-      publisher: 'BBC News',
-      image: 'https://source.unsplash.com/600x400/?climate-earth',
-      url: 'https://www.bing.com/news/search?q=climate+summit',
-      time: '12 hours ago',
-    },
-    {
-      title: 'Quantum Computing Breakthrough: 1000-Qubit Processor Achieved',
-      publisher: 'Wired',
-      image: 'https://source.unsplash.com/600x400/?quantum-computing',
-      url: 'https://www.bing.com/news/search?q=quantum+computing+breakthrough',
-      time: '13 hours ago',
-    },
-  ],
-
-  refreshInterval: null,
+  interval: null,
 
   async init() {
-    await this.loadArticles();
+    this.renderArticles();
     this.setupRefresh();
     this.setupSettings();
-
-    document.getElementById('feed-refresh-btn').addEventListener('click', () => {
-      this.loadArticles();
-    });
+    document.getElementById('feed-refresh-btn').onclick = () => this.renderArticles();
   },
 
-  async loadArticles() {
-    const feedGrid = document.getElementById('feed-grid');
-    const feedLoading = document.getElementById('feed-loading');
-
-    feedLoading.style.display = 'flex';
-    feedGrid.innerHTML = '';
-
-    // Simulate network delay for realism
-    await new Promise((r) => setTimeout(r, 400));
-
-    const userTopics = await StorageManager.get('feed_topics', []);
-    let articles = [...this.sampleArticles];
-
-    // Shuffle for variety on each load
-    for (let i = articles.length - 1; i > 0; i--) {
+  renderArticles() {
+    const grid = document.getElementById('feed-grid');
+    grid.innerHTML = '';
+    // Shuffle for variety
+    const arts = [...ARTICLES];
+    for (let i = arts.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [articles[i], articles[j]] = [articles[j], articles[i]];
+      [arts[i], arts[j]] = [arts[j], arts[i]];
     }
 
-    // In production: fetch from news API with user topics and browsing history
-    // GET /api/feed?topics=Technology,Science&history_hash=<hash>&limit=20
-
-    feedLoading.style.display = 'none';
-
-    articles.forEach((article, index) => {
-      // Insert ad card every 4th position (after 3 real articles)
-      if (index > 0 && index % 3 === 0) {
-        feedGrid.appendChild(this.createAdCard());
-      }
-      feedGrid.appendChild(this.createArticleCard(article));
+    arts.forEach((a, idx) => {
+      // REQ-FEED-7: ad every 4th position (after 3 articles)
+      if (idx > 0 && idx % 3 === 0) grid.appendChild(this.adCard());
+      grid.appendChild(this.articleCard(a));
     });
   },
 
-  createArticleCard(article) {
+  articleCard(a) {
     const card = document.createElement('a');
-    card.className = 'article-card';
-    card.href = sanitizeUrl(article.url);
+    card.className = 'card';
+    card.href = 'https://www.bing.com/news/search?q=' + encodeURIComponent(a.t);
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
 
-    const img = document.createElement('img');
-    img.className = 'article-image';
-    img.src = article.image;
-    img.alt = '';
-    img.loading = 'lazy';
-    img.addEventListener('error', () => {
-      img.style.background = 'linear-gradient(135deg, rgba(100,210,255,0.15), rgba(10,132,255,0.1))';
-      img.src = '';
-    });
+    // §8.2: gradient placeholder with category icon
+    const grad = CAT_GRAD[a.c] || CAT_GRAD.default;
+    const icon = CAT_ICON[a.c] || CAT_ICON.default;
+    const ph = document.createElement('div');
+    ph.className = 'card-ph';
+    ph.style.background = grad;
+    ph.textContent = icon;
 
     const body = document.createElement('div');
-    body.className = 'article-body';
+    body.className = 'card-body';
 
-    const publisher = document.createElement('span');
-    publisher.className = 'article-publisher';
-    publisher.textContent = sanitizeText(article.publisher);
+    const pub = document.createElement('span');
+    pub.className = 'card-pub';
+    pub.textContent = a.p;
 
-    const headline = document.createElement('h3');
-    headline.className = 'article-headline';
-    headline.textContent = sanitizeText(article.title);
+    const title = document.createElement('h3');
+    title.className = 'card-title';
+    title.textContent = a.t;
 
-    const meta = document.createElement('span');
-    meta.className = 'article-meta';
-    meta.textContent = sanitizeText(article.time);
+    const time = document.createElement('span');
+    time.className = 'card-time';
+    time.textContent = a.h;
 
-    body.appendChild(publisher);
-    body.appendChild(headline);
-    body.appendChild(meta);
-
-    card.appendChild(img);
-    card.appendChild(body);
-
+    body.append(pub, title, time);
+    card.append(ph, body);
     return card;
   },
 
-  createAdCard() {
-    const card = document.createElement('div');
-    card.className = 'ad-card';
-
+  adCard() {
+    const d = document.createElement('div');
+    d.className = 'card-ad';
     const label = document.createElement('span');
-    label.className = 'ad-label';
+    label.className = 'card-ad-label';
     label.textContent = 'Sponsored';
-
-    const slot = document.createElement('div');
-    slot.className = 'ad-slot';
-
-    // In production: insert Google AdSense script
-    // <ins class="adsbygoogle" data-ad-client="ca-pub-XXX" data-ad-slot="YYY"></ins>
-    const placeholder = document.createElement('div');
-    placeholder.className = 'ad-placeholder';
-    placeholder.textContent = 'Advertisement';
-    slot.appendChild(placeholder);
-
-    card.appendChild(label);
-    card.appendChild(slot);
-
-    return card;
+    const inner = document.createElement('div');
+    inner.className = 'card-ad-inner';
+    inner.textContent = 'Advertisement';
+    d.append(label, inner);
+    return d;
   },
 
   async setupRefresh() {
-    const intervalMinutes = await StorageManager.get('feed_refresh_interval', 30);
-    if (this.refreshInterval) clearInterval(this.refreshInterval);
-    this.refreshInterval = setInterval(
-      () => this.loadArticles(),
-      intervalMinutes * 60 * 1000,
-    );
+    const mins = await S.get('feed_interval', 30);
+    if (this.interval) clearInterval(this.interval);
+    this.interval = setInterval(() => this.renderArticles(), mins * 60 * 1000);
   },
 
   setupSettings() {
-    const settingsBtn = document.getElementById('feed-settings-btn');
-    const modal = document.getElementById('feed-settings-modal');
-    const closeBtn = document.getElementById('feed-settings-close');
-    const saveBtn = document.getElementById('feed-settings-save');
-    const chipsContainer = document.getElementById('topic-chips');
+    const modal = document.getElementById('settings-modal');
+    const chips = document.getElementById('topic-chips');
 
-    settingsBtn.addEventListener('click', async () => {
-      const selectedTopics = await StorageManager.get('feed_topics', []);
-      const useHistory = await StorageManager.get('feed_use_history', true);
-      const showAds = await StorageManager.get('feed_show_ads', true);
-      const refreshInterval = await StorageManager.get('feed_refresh_interval', 30);
-
-      document.getElementById('history-toggle').checked = useHistory;
-      document.getElementById('ads-toggle').checked = showAds;
-      document.getElementById('refresh-interval').value = String(refreshInterval);
-
-      chipsContainer.innerHTML = '';
-      this.topics.forEach((topic) => {
-        const chip = document.createElement('button');
-        chip.className = 'topic-chip' + (selectedTopics.includes(topic) ? ' active' : '');
-        chip.textContent = topic;
-        chip.addEventListener('click', () => chip.classList.toggle('active'));
-        chipsContainer.appendChild(chip);
+    document.getElementById('feed-settings-btn').onclick = async () => {
+      const sel = await S.get('feed_topics', []);
+      chips.innerHTML = '';
+      this.topics.forEach(t => {
+        const c = document.createElement('button');
+        c.className = 'chip' + (sel.includes(t) ? ' on' : '');
+        c.textContent = t;
+        c.onclick = () => c.classList.toggle('on');
+        chips.appendChild(c);
       });
+      document.getElementById('opt-history').checked = await S.get('feed_history', true);
+      document.getElementById('opt-ads').checked = await S.get('feed_ads', true);
+      document.getElementById('opt-interval').value = String(await S.get('feed_interval', 30));
+      modal.hidden = false;
+    };
 
-      modal.style.display = 'flex';
-    });
+    document.getElementById('settings-close').onclick = () => modal.hidden = true;
+    modal.onclick = e => { if (e.target === modal) modal.hidden = true; };
 
-    closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.style.display = 'none';
-    });
-
-    saveBtn.addEventListener('click', async () => {
-      const activeChips = chipsContainer.querySelectorAll('.topic-chip.active');
-      const topics = Array.from(activeChips).map((c) => c.textContent);
-
-      await StorageManager.set('feed_topics', topics);
-      await StorageManager.set('feed_use_history', document.getElementById('history-toggle').checked);
-      await StorageManager.set('feed_show_ads', document.getElementById('ads-toggle').checked);
-      await StorageManager.set('feed_refresh_interval',
-        parseInt(document.getElementById('refresh-interval').value, 10));
-
-      modal.style.display = 'none';
-      this.loadArticles();
+    document.getElementById('settings-save').onclick = async () => {
+      const active = [...chips.querySelectorAll('.chip.on')].map(c => c.textContent);
+      await S.set('feed_topics', active);
+      await S.set('feed_history', document.getElementById('opt-history').checked);
+      await S.set('feed_ads', document.getElementById('opt-ads').checked);
+      await S.set('feed_interval', parseInt(document.getElementById('opt-interval').value, 10));
+      modal.hidden = true;
+      this.renderArticles();
       this.setupRefresh();
-    });
-  },
+    };
+  }
 };
 
-/* ==========================================================================
-   Initialize on DOM ready
-   ========================================================================== */
+/* ═══════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
-  BackgroundManager.init();
-  SearchController.init();
-  BookmarkController.init();
-  FeedController.init();
+  BG.init();
+  Search.init();
+  Bookmarks.init();
+  Feed.init();
 });
