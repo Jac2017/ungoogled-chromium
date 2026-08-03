@@ -3,613 +3,371 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aether for Chromium — Constellation Prototype</title>
+<title>Aether for Chromium — Browser Prototype</title>
 <style>
-  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#F8F8F8;--card-bg:rgba(244,244,244,0.72);--text:#1C1C1E;--text2:#666;
+  --glow:#FFEBB8;--accent:#FFCC66;--deep:#E8B866;--border:rgba(255,235,184,0.3);
+  --curve:cubic-bezier(0.23,1,0.32,1);
+}
+.dark{
+  --bg:#1C1C1E;--card-bg:rgba(42,42,46,0.72);--text:#F8F8F8;--text2:#999;
+  --glow:#D4B366;--accent:#C9A14F;--deep:#A08030;--border:rgba(212,179,102,0.25);
+}
+html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);transition:all .5s var(--curve)}
 
-  :root{
-    --aether-ether-base:#FFEBB8;
-    --aether-accent:#FFCC66;
-    --aether-deep-glow:#E8B866;
-    --aether-bg:#F8F8F8;
-    --aether-card-bg:rgba(244,244,244,0.72);
-    --aether-text:#1C1C1E;
-    --aether-text-sec:#666;
-    --aether-border:rgba(255,235,184,0.3);
-    --aether-glow-intensity:1;
-    --liquid-curve:cubic-bezier(0.23,1,0.32,1);
-  }
-  .dark{
-    --aether-ether-base:#D4B366;
-    --aether-accent:#C9A14F;
-    --aether-deep-glow:#A08030;
-    --aether-bg:#1C1C1E;
-    --aether-card-bg:rgba(42,42,46,0.72);
-    --aether-text:#F8F8F8;
-    --aether-text-sec:#999;
-    --aether-border:rgba(212,179,102,0.25);
-  }
+/* Browser chrome toolbar */
+#toolbar{
+  position:fixed;top:0;left:0;right:0;height:52px;z-index:80;
+  background:var(--card-bg);backdrop-filter:blur(32px) saturate(1.6);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px;gap:4px;
+  opacity:0;transform:translateY(-52px);
+  transition:opacity .22s var(--curve),transform .22s var(--curve);
+}
+#toolbar.visible{opacity:1;transform:translateY(0)}
+.tb-btn{
+  width:36px;height:36px;border-radius:10px;border:none;background:transparent;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text);opacity:0.6;transition:all .15s;font-size:18px;
+}
+.tb-btn:hover{background:rgba(128,128,128,0.12);opacity:1}
+.tb-btn.disabled{opacity:0.2;pointer-events:none}
+.tb-sep{width:1px;height:24px;background:rgba(128,128,128,0.15);margin:0 4px;flex-shrink:0}
 
-  @font-face{
-    font-family:'Aether Sans';
-    src:local('SF Pro Display'),local('Segoe UI'),local('Helvetica Neue'),local('Arial');
-  }
+/* Omnibox */
+#omnibar{
+  flex:1;height:36px;border-radius:9999px;
+  background:rgba(128,128,128,0.08);border:1.5px solid transparent;
+  display:flex;align-items:center;padding:0 14px;gap:8px;margin:0 8px;
+  transition:all .22s var(--curve);
+}
+#omnibar:focus-within{border-color:rgba(255,204,102,0.4);background:rgba(128,128,128,0.04);box-shadow:0 0 32px rgba(255,204,102,0.08)}
+#omnibar .lock{font-size:13px;opacity:0.4}
+#omnibar input{flex:1;border:none;outline:none;background:none;font:inherit;font-size:14px;color:var(--text)}
+#omnibar input::placeholder{color:var(--text2)}
+#omnibar .star{font-size:16px;opacity:0.3;cursor:pointer}
+#omnibar .star:hover{opacity:0.8}
 
-  html,body{
-    width:100%;height:100%;overflow:hidden;
-    font-family:'Aether Sans',system-ui,-apple-system,sans-serif;
-    background:var(--aether-bg);color:var(--aether-text);
-    transition:background .6s var(--liquid-curve),color .6s var(--liquid-curve);
-  }
+/* Right toolbar icons */
+.tb-right{display:flex;align-items:center;gap:2px}
+.tb-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#7B68EE,#4169E1);margin:0 4px;cursor:pointer}
 
-  /* ── Ether ambient background ── */
-  #ether-bg{
-    position:fixed;inset:0;z-index:0;pointer-events:none;
-    overflow:hidden;
-  }
-  #ether-bg canvas{width:100%;height:100%}
+/* Intent zone */
+#intent-zone{position:fixed;top:0;left:0;right:0;height:15vh;z-index:5}
 
-  /* ── Intent zone (top 15%) ── */
-  #intent-zone{
-    position:fixed;top:0;left:0;right:0;height:15vh;z-index:5;
-    cursor:default;
-  }
+/* Constellation */
+#constellation{
+  position:fixed;inset:0;z-index:60;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);
+  opacity:0;pointer-events:none;transition:opacity .22s var(--curve);
+}
+#constellation.visible{opacity:1;pointer-events:auto}
+#card-grid{
+  display:grid;grid-template-columns:repeat(4,280px);gap:20px;
+  transform:scale(0.92);transition:transform .3s var(--curve);
+}
+#constellation.visible #card-grid{transform:scale(1)}
 
-  /* ── Constellation container ── */
-  #constellation{
-    position:fixed;top:50%;left:50%;z-index:10;
-    transform:translate(-50%,-55%);
-    opacity:0;
-    transition:opacity .22s var(--liquid-curve);
-    pointer-events:none;
-  }
-  #constellation.visible{opacity:1;pointer-events:auto}
+/* Tab cards */
+.card{
+  width:280px;height:200px;border-radius:24px;overflow:hidden;cursor:pointer;
+  background:var(--card-bg);backdrop-filter:blur(18px);
+  border:1px solid var(--border);
+  box-shadow:0 4px 24px rgba(0,0,0,0.08);
+  transition:transform .18s var(--curve),box-shadow .18s var(--curve);
+  position:relative;
+}
+.card:hover{
+  transform:scale(1.08);z-index:10;
+  box-shadow:0 0 48px rgba(255,204,102,0.25),0 12px 40px rgba(0,0,0,0.15);
+}
+.card .preview{width:100%;height:155px;overflow:hidden;position:relative}
+.card .meta{height:45px;padding:0 14px;display:flex;align-items:center;gap:8px;border-top:1px solid rgba(128,128,128,0.08)}
+.card .fav{width:16px;height:16px;border-radius:4px;flex-shrink:0}
+.card .ttl{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.card .close-x{width:20px;height:20px;border-radius:50%;border:none;background:rgba(128,128,128,0.1);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:var(--text)}
+.card:hover .close-x{opacity:0.6}
 
-  /* ── Tab card ── */
-  .tab-card{
-    position:absolute;
-    width:280px;height:175px;
-    border-radius:24px;
-    background:var(--aether-card-bg);
-    backdrop-filter:blur(18px) saturate(1.4);
-    -webkit-backdrop-filter:blur(18px) saturate(1.4);
-    border:1px solid var(--aether-border);
-    overflow:hidden;
-    cursor:pointer;
-    transition:transform .18s var(--liquid-curve),
-               box-shadow .18s var(--liquid-curve),
-               opacity .22s var(--liquid-curve);
-    transform-origin:center center;
-    will-change:transform;
-  }
-  .tab-card:hover{
-    transform:scale(1.45) translateZ(0) !important;
-    box-shadow:0 0 48px rgba(255,204,102,0.35),0 8px 32px rgba(0,0,0,0.15);
-    z-index:20;
-  }
-  .tab-card .card-preview{
-    width:100%;height:125px;
-    object-fit:cover;
-    display:block;
-    border-radius:24px 24px 0 0;
-    background:linear-gradient(135deg,rgba(255,235,184,0.15),rgba(200,180,140,0.08));
-  }
-  .tab-card .card-meta{
-    padding:8px 14px;display:flex;align-items:center;gap:8px;
-  }
-  .tab-card .card-favicon{
-    width:16px;height:16px;border-radius:4px;flex-shrink:0;
-    background:var(--aether-accent);
-  }
-  .tab-card .card-favicon img{width:100%;height:100%;border-radius:4px}
-  .tab-card .card-title{
-    font-size:13px;font-weight:500;
-    color:var(--aether-text);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    flex:1;
-  }
+/* Site preview styles */
+.fox .preview{background:#fff}
+.fox .fn-hd{height:32px;background:#003366;display:flex;align-items:center;padding:0 10px}
+.fox .fn-logo{color:#fff;font-weight:800;font-size:11px;letter-spacing:.5px}
+.fox .fn-nav{height:22px;background:#E31937;display:flex;align-items:center;gap:8px;padding:0 10px}
+.fox .fn-nav span{color:#fff;font-size:8px;font-weight:600}
+.fox .fn-body{padding:8px 10px;display:flex;gap:8px}
+.fox .fn-hero{flex:1}
+.fox .fn-img{height:52px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:3px;margin-bottom:4px;display:flex;align-items:end;padding:4px}
+.fox .fn-img span{color:#fff;font-size:7px;font-weight:700;line-height:1.2}
+.fox .fn-side{width:80px}
+.fox .fn-th{height:28px;background:#eee;border-radius:2px;margin-bottom:2px}
+.fox .fn-side p{font-size:6px;color:#333;line-height:1.3;margin-bottom:4px}
 
-  /* ── Glow ring behind each card ── */
-  .glow-ring{
-    position:absolute;
-    width:330px;height:225px;
-    border-radius:50%;
-    background:radial-gradient(ellipse,rgba(255,204,102,0.12) 0%,transparent 70%);
-    pointer-events:none;
-    filter:blur(8px);
-    animation:breathe 1.2s ease-in-out infinite alternate;
-  }
-  @keyframes breathe{
-    0%{opacity:0.6;transform:scale(1)}
-    100%{opacity:1;transform:scale(1.06)}
-  }
+.yt .preview{background:#0f0f0f}
+.yt .yt-hd{height:28px;background:#0f0f0f;display:flex;align-items:center;padding:0 10px;gap:6px}
+.yt .yt-logo{color:#fff;font-size:9px;font-weight:700}
+.yt .yt-logo span{color:#f00}
+.yt .yt-search{flex:1;height:16px;background:#222;border-radius:8px;margin:0 10px}
+.yt .yt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px 10px}
+.yt .yt-th{height:44px;border-radius:4px;position:relative}
+.yt .yt-dur{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.8);color:#fff;font-size:6px;padding:1px 3px;border-radius:2px}
+.yt .yt-ti{color:#fff;font-size:6px;margin-top:3px;line-height:1.3}
+.yt .yt-ch{color:#aaa;font-size:5px;margin-top:1px}
 
-  /* ── Ether strands (SVG lines between cards) ── */
-  #strands{
-    position:fixed;inset:0;z-index:9;pointer-events:none;
-  }
-  #strands line{
-    stroke:var(--aether-accent);
-    stroke-width:1.5;
-    stroke-dasharray:6 8;
-    opacity:0;
-    transition:opacity .22s var(--liquid-curve);
-  }
-  #constellation.visible ~ #strands line{opacity:0.18}
+.wiki .preview{background:#fff}
+.wiki .wk-hd{height:20px;background:#fff;border-bottom:1px solid #a7d7f9;display:flex;align-items:center;gap:8px;padding:0 8px}
+.wiki .wk-hd span{font-size:7px;color:#36c}
+.wiki .wk-body{padding:6px 10px;display:flex;gap:8px}
+.wiki .wk-art{flex:1}
+.wiki .wk-h1{font-size:12px;font-weight:400;color:#000;border-bottom:1px solid #a2a9b1;padding-bottom:3px;margin-bottom:4px;font-family:Georgia,serif}
+.wiki .wk-p{font-size:6px;color:#202122;line-height:1.5;font-family:Georgia,serif}
+.wiki .wk-img{width:60px;height:70px;background:#f8f9fa;border:1px solid #c8ccd1;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:20px}
 
-  /* ── Ether Omnibox pill ── */
-  #omnibox{
-    position:fixed;top:32px;left:50%;z-index:50;
-    transform:translateX(-50%) translateY(-120px);
-    width:480px;height:56px;
-    border-radius:9999px;
-    background:var(--aether-card-bg);
-    backdrop-filter:blur(32px) saturate(1.6);
-    -webkit-backdrop-filter:blur(32px) saturate(1.6);
-    border:1.5px solid rgba(255,204,102,0.3);
-    display:flex;align-items:center;padding:0 24px;gap:12px;
-    box-shadow:0 0 64px rgba(255,204,102,0.12),0 4px 24px rgba(0,0,0,0.06);
-    transition:transform .22s var(--liquid-curve),
-               width .22s var(--liquid-curve),
-               opacity .16s var(--liquid-curve);
-    opacity:0;
-  }
-  #omnibox.visible{
-    transform:translateX(-50%) translateY(0);
-    opacity:1;
-  }
-  #omnibox:focus-within{
-    width:620px;
-    border-color:rgba(255,204,102,0.5);
-    box-shadow:0 0 80px rgba(255,204,102,0.2),0 4px 32px rgba(0,0,0,0.08);
-  }
-  #omnibox .pill-icon{
-    width:20px;height:20px;opacity:0.5;flex-shrink:0;
-  }
-  #omnibox input{
-    flex:1;border:none;outline:none;background:transparent;
-    font-size:17px;font-weight:400;font-family:inherit;
-    color:var(--aether-text);
-  }
-  #omnibox input::placeholder{color:var(--aether-text-sec)}
+.amz .preview{background:#fff}
+.amz .az-hd{height:26px;background:#131921;display:flex;align-items:center;padding:0 8px;gap:6px}
+.amz .az-logo{color:#fff;font-size:9px;font-weight:700}
+.amz .az-logo span{color:#f90}
+.amz .az-sr{flex:1;height:14px;background:#fff;border-radius:4px}
+.amz .az-cart{color:#fff;font-size:8px}
+.amz .az-body{padding:6px 8px;display:flex;gap:8px}
+.amz .az-img{width:80px;height:80px;background:#f7f7f7;border:1px solid #eee;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:28px}
+.amz .az-info{flex:1}
+.amz .az-ti{font-size:8px;color:#0f1111;font-weight:500;line-height:1.3;margin-bottom:3px}
+.amz .az-stars{color:#de7921;font-size:7px;margin-bottom:2px}
+.amz .az-price{font-size:12px;font-weight:700;color:#0f1111;margin-bottom:3px}
+.amz .az-price span{font-size:7px;vertical-align:super}
+.amz .az-buy{height:16px;width:70px;background:#ffd814;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700}
 
-  /* ── Content page (simulated) ── */
-  #content{
-    position:fixed;inset:0;z-index:1;
-    display:flex;align-items:center;justify-content:center;
-    flex-direction:column;gap:16px;
-    transition:opacity .3s var(--liquid-curve),filter .3s var(--liquid-curve);
-  }
-  #content.dimmed{opacity:0.4;filter:blur(6px)}
-  #content h1{
-    font-size:42px;font-weight:600;letter-spacing:-0.5px;
-    background:linear-gradient(135deg,var(--aether-accent),var(--aether-deep-glow));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-    background-clip:text;
-  }
-  #content p{
-    font-size:15px;color:var(--aether-text-sec);max-width:480px;
-    text-align:center;line-height:1.6;
-  }
-  #content .hint{
-    margin-top:24px;font-size:13px;color:var(--aether-text-sec);
-    opacity:0.6;
-    animation:pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}
+.delta .preview{background:#fff}
+.delta .dl-hd{height:26px;background:#003a70;display:flex;align-items:center;padding:0 10px}
+.delta .dl-logo{color:#fff;font-size:10px;font-weight:700;letter-spacing:1px}
+.delta .dl-logo span{color:#c8102e}
+.delta .dl-hero{height:55px;background:linear-gradient(135deg,#001f3f,#003a70);display:flex;align-items:center;justify-content:center}
+.delta .dl-hero span{color:#fff;font-size:10px;font-weight:300;letter-spacing:2px}
+.delta .dl-form{padding:6px 10px}
+.delta .dl-row{display:flex;gap:4px;margin-bottom:4px}
+.delta .dl-field{flex:1;height:18px;background:#f5f5f5;border:1px solid #ddd;border-radius:3px;padding:0 4px;font-size:6px;display:flex;align-items:center;color:#666}
+.delta .dl-go{height:18px;background:#c8102e;border-radius:3px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:7px;font-weight:600;width:50px}
 
-  /* ── Theme toggle ── */
-  #theme-toggle{
-    position:fixed;bottom:24px;right:24px;z-index:100;
-    width:44px;height:44px;border-radius:50%;border:none;
-    background:var(--aether-card-bg);
-    backdrop-filter:blur(12px);
-    -webkit-backdrop-filter:blur(12px);
-    cursor:pointer;font-size:20px;
-    display:flex;align-items:center;justify-content:center;
-    box-shadow:0 2px 12px rgba(0,0,0,0.1);
-    transition:transform .18s var(--liquid-curve);
-  }
-  #theme-toggle:hover{transform:scale(1.15)}
+.gmail .preview{background:#fff}
+.gmail .gm-hd{height:28px;background:#fff;display:flex;align-items:center;padding:0 8px;gap:6px;border-bottom:1px solid #e0e0e0}
+.gmail .gm-logo{font-size:10px;font-weight:500;color:#5f6368}
+.gmail .gm-logo span{color:#ea4335}
+.gmail .gm-sr{flex:1;height:16px;background:#eaf1fb;border-radius:8px}
+.gmail .gm-body{display:flex;height:calc(100% - 28px)}
+.gmail .gm-side{width:40px;background:#f6f8fc;padding:6px 0}
+.gmail .gm-compose{margin:0 auto 6px;width:32px;height:14px;background:#c2e7ff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:5px;font-weight:600;color:#001d35}
+.gmail .gm-nav{padding:0 4px}
+.gmail .gm-nav div{height:10px;margin-bottom:2px;border-radius:5px;font-size:5px;padding:0 3px;display:flex;align-items:center}
+.gmail .gm-nav .active{background:#d3e3fd;font-weight:600;color:#001d35}
+.gmail .gm-list{flex:1;padding:2px 4px}
+.gmail .gm-row{height:16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:4px;padding:0 4px}
+.gmail .gm-from{font-size:6px;font-weight:600;color:#202124;width:40px}
+.gmail .gm-subj{font-size:6px;color:#202124;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gmail .gm-date{font-size:5px;color:#5f6368}
 
-  /* ── Focus mode indicator ── */
-  #focus-glow{
-    position:fixed;inset:0;z-index:2;pointer-events:none;
-    border-radius:0;
-    box-shadow:inset 0 0 120px 40px transparent;
-    transition:box-shadow 1.2s ease-in-out;
-  }
-  body:not(.ui-active) #focus-glow{
-    box-shadow:inset 0 0 120px 40px rgba(255,235,184,0.03);
-  }
+.nord .preview{background:#fff}
+.nord .nd-hd{height:24px;background:#000;display:flex;align-items:center;justify-content:center}
+.nord .nd-logo{color:#fff;font-size:8px;font-weight:400;letter-spacing:4px;text-transform:uppercase}
+.nord .nd-body{padding:6px 10px;display:flex;gap:8px}
+.nord .nd-img{width:75px;height:95px;background:linear-gradient(180deg,#e8e0d8,#d4ccc4);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:24px}
+.nord .nd-info{flex:1;padding-top:4px}
+.nord .nd-brand{font-size:7px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.nord .nd-name{font-size:9px;font-weight:500;color:#111;margin-bottom:3px}
+.nord .nd-pr{font-size:10px;font-weight:600;color:#111;margin-bottom:4px}
+.nord .nd-colors{display:flex;gap:3px;margin-bottom:4px}
+.nord .nd-colors span{width:12px;height:12px;border-radius:50%;border:1px solid #ddd}
+.nord .nd-btn{height:18px;background:#000;color:#fff;font-size:7px;font-weight:500;border-radius:2px;display:flex;align-items:center;justify-content:center;letter-spacing:.5px}
 
-  /* ── Info bar ── */
-  #info{
-    position:fixed;bottom:24px;left:24px;z-index:100;
-    font-size:11px;color:var(--aether-text-sec);opacity:0.5;
-    line-height:1.5;
-  }
+.apple .preview{background:#fbfbfd}
+.apple .ap-nav{height:24px;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;gap:12px}
+.apple .ap-nav span{color:rgba(255,255,255,.8);font-size:7px}
+.apple .ap-hero{display:flex;flex-direction:column;align-items:center;padding:12px 10px 6px}
+.apple .ap-hero h2{font-size:16px;font-weight:600;color:#1d1d1f;margin-bottom:2px}
+.apple .ap-hero p{font-size:8px;color:#6e6e73;margin-bottom:8px}
+.apple .ap-product{width:100px;height:56px;background:linear-gradient(180deg,#e4e4e7,#d2d2d7);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px}
+.apple .ap-links{display:flex;gap:8px;margin-top:6px}
+.apple .ap-links a{font-size:7px;color:#06c;cursor:pointer}
 
-  /* ── Selected card full view ── */
-  #fullview{
-    position:fixed;inset:0;z-index:60;
-    background:var(--aether-bg);
-    display:flex;align-items:center;justify-content:center;
-    flex-direction:column;gap:16px;
-    opacity:0;pointer-events:none;
-    transition:opacity .22s var(--liquid-curve);
-  }
-  #fullview.visible{opacity:1;pointer-events:auto}
-  #fullview .fv-frame{
-    width:80vw;height:70vh;border-radius:24px;
-    background:var(--aether-card-bg);
-    backdrop-filter:blur(18px);
-    -webkit-backdrop-filter:blur(18px);
-    border:1px solid var(--aether-border);
-    overflow:hidden;display:flex;align-items:center;justify-content:center;
-    font-size:18px;color:var(--aether-text-sec);
-  }
-  #fullview .fv-bar{
-    display:flex;align-items:center;gap:12px;
-  }
-  #fullview .fv-title{font-size:15px;font-weight:500;color:var(--aether-text)}
-  #fullview .fv-close{
-    width:32px;height:32px;border-radius:50%;border:none;
-    background:rgba(255,80,80,0.15);color:#ff5050;
-    font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-    transition:background .18s;
-  }
-  #fullview .fv-close:hover{background:rgba(255,80,80,0.3)}
+/* Fullview */
+#fullview{position:fixed;inset:0;z-index:90;background:var(--bg);opacity:0;pointer-events:none;transition:opacity .22s var(--curve);display:flex;flex-direction:column}
+#fullview.visible{opacity:1;pointer-events:auto}
+#fv-content{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center}
+#fv-content .fv-inner{text-align:center;color:var(--text2);font-size:15px}
+
+/* Background + misc */
+#ether-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+#ether-bg canvas{width:100%;height:100%}
+#focus-glow{position:fixed;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 0 100px 30px rgba(255,235,184,0.03)}
+#content{position:fixed;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;transition:opacity .3s var(--curve),filter .3s var(--curve)}
+#content.dimmed{opacity:.3;filter:blur(8px)}
+#content h1{font-size:38px;font-weight:600;background:linear-gradient(135deg,var(--accent),var(--deep));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#content p{font-size:14px;color:var(--text2);max-width:460px;text-align:center;line-height:1.6}
+.hint{margin-top:20px;font-size:12px;color:var(--text2);opacity:.5;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}
+#theme-toggle{position:fixed;bottom:20px;right:20px;z-index:100;width:40px;height:40px;border-radius:50%;border:none;background:var(--card-bg);backdrop-filter:blur(12px);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.1);transition:transform .18s var(--curve)}
+#theme-toggle:hover{transform:scale(1.15)}
+#info{position:fixed;bottom:20px;left:20px;z-index:100;font-size:10px;color:var(--text2);opacity:.4;line-height:1.5}
 </style>
 </head>
 <body>
 
-<!-- Ether ambient background (canvas for liquid light) -->
-<div id="ether-bg"><canvas id="liquid-canvas"></canvas></div>
-
-<!-- Focus mode edge glow -->
+<div id="ether-bg"><canvas id="lc"></canvas></div>
 <div id="focus-glow"></div>
 
-<!-- Content page (simulated web page) -->
+<!-- BROWSER TOOLBAR -->
+<div id="toolbar">
+  <button class="tb-btn disabled" title="Back">&#8592;</button>
+  <button class="tb-btn disabled" title="Forward">&#8594;</button>
+  <button class="tb-btn" title="Reload">&#8635;</button>
+  <button class="tb-btn" title="Home">&#8962;</button>
+  <div id="omnibar">
+    <span class="lock">&#128274;</span>
+    <input type="text" id="omni-input" placeholder="Search or enter URL..." spellcheck="false"/>
+    <span class="star" title="Bookmark">&#9734;</span>
+  </div>
+  <div class="tb-right">
+    <button class="tb-btn" title="Extensions">&#129513;</button>
+    <button class="tb-btn" title="Downloads">&#8681;</button>
+    <div class="tb-avatar" title="Profile"></div>
+    <button class="tb-btn" title="Settings">&#8942;</button>
+  </div>
+</div>
+
+<!-- CONTENT -->
 <div id="content">
   <h1>Aether for Chromium</h1>
-  <p>The browser interface dissolves. Content breathes. Tabs orbit as living constellations of light, summoned by intent alone.</p>
-  <div class="hint">Hover near the top edge to summon the constellation &nbsp;|&nbsp; Press Ctrl+L for omnibox</div>
+  <p>Zero-UI browser. Tabs orbit as constellations of light summoned by intent. Move your mouse to the top edge.</p>
+  <div class="hint">Hover top edge &#8594; Constellation &nbsp;|&nbsp; Ctrl+L &#8594; Omnibox &nbsp;|&nbsp; Esc &#8594; Dismiss</div>
 </div>
 
-<!-- Intent detection zone (top 15%) -->
 <div id="intent-zone"></div>
 
-<!-- Constellation Tabs -->
-<div id="constellation"></div>
+<!-- CONSTELLATION -->
+<div id="constellation">
+<div id="card-grid">
 
-<!-- Ether strands SVG -->
-<svg id="strands" xmlns="http://www.w3.org/2000/svg"></svg>
-
-<!-- Ether Omnibox pill -->
-<div id="omnibox">
-  <svg class="pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-  <input type="text" id="omni-input" placeholder="Search or enter URL..." autocomplete="off" spellcheck="false"/>
-</div>
-
-<!-- Full view overlay -->
-<div id="fullview">
-  <div class="fv-bar">
-    <span class="fv-title" id="fv-title"></span>
-    <button class="fv-close" id="fv-close">&times;</button>
+  <div class="card fox" data-site="Fox News" data-url="foxnews.com">
+    <div class="preview">
+      <div class="fn-hd"><span class="fn-logo">FOX NEWS</span></div>
+      <div class="fn-nav"><span>U.S.</span><span>Politics</span><span>World</span><span>Opinion</span><span>Business</span></div>
+      <div class="fn-body"><div class="fn-hero"><div class="fn-img"><span>BREAKING: Senate passes major infrastructure bill in late-night vote</span></div></div><div class="fn-side"><div class="fn-th"></div><p>Markets rally on earnings</p><div class="fn-th"></div><p>Storm path update</p></div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#003366"></div><span class="ttl">Fox News</span><button class="close-x">&times;</button></div>
   </div>
-  <div class="fv-frame" id="fv-frame"></div>
-</div>
 
-<!-- Theme toggle -->
-<button id="theme-toggle" title="Toggle dark/light">&#9790;</button>
-
-<!-- Info -->
-<div id="info">
-  Aether v1.3 &mdash; Liquid Light Material System<br>
-  cubic-bezier(0.23, 1, 0.32, 1) &bull; 220ms bloom &bull; 160ms dissolve
-</div>
-
-<script>
-// ═══════════════════════════════════════════════════════════════
-// Aether Constellation Demo
-// ═══════════════════════════════════════════════════════════════
-
-const SITES = [
-  { title: 'Fox News',           domain: 'foxnews.com',       color: '#003366', accent: '#C41E3A' },
-  { title: 'YouTube',            domain: 'youtube.com',       color: '#FF0000', accent: '#282828' },
-  { title: 'Wikipedia',          domain: 'wikipedia.org',     color: '#FFFFFF', accent: '#363636' },
-  { title: 'Amazon — AirPods',   domain: 'amazon.com',        color: '#FF9900', accent: '#232F3E' },
-  { title: 'Delta Flight Search',domain: 'delta.com',         color: '#003A70', accent: '#C8102E' },
-  { title: 'Gmail',              domain: 'mail.google.com',   color: '#EA4335', accent: '#FFFFFF' },
-  { title: 'Nordstrom — Jeans',  domain: 'nordstrom.com',     color: '#000000', accent: '#FFFFFF' },
-  { title: 'Apple',              domain: 'apple.com',         color: '#F5F5F7', accent: '#1D1D1F' },
-];
-
-const ARC_RADIUS = Math.min(window.innerWidth * 0.38, 520);
-const CARD_W = 280, CARD_H = 175;
-
-// ── Build constellation cards ──
-const constellationEl = document.getElementById('constellation');
-const strandsEl = document.getElementById('strands');
-const cards = [];
-
-SITES.forEach((site, i) => {
-  // Glow ring
-  const glow = document.createElement('div');
-  glow.className = 'glow-ring';
-  glow.style.animationDelay = `${i * 150}ms`;
-  constellationEl.appendChild(glow);
-
-  // Card
-  const card = document.createElement('div');
-  card.className = 'tab-card';
-  card.innerHTML = `
-    <div class="card-preview" style="background:linear-gradient(135deg,${site.accent},${site.color})">
-      <div style="padding:16px 20px;color:${luminance(site.color)>.5?'#1C1C1E':'#F8F8F8'}">
-        <div style="font-size:11px;opacity:0.7;margin-bottom:6px">${site.domain}</div>
-        <div style="font-size:18px;font-weight:600">${site.title}</div>
-        <div style="margin-top:12px;height:8px;width:60%;border-radius:4px;background:rgba(255,255,255,0.15)"></div>
-        <div style="margin-top:6px;height:8px;width:40%;border-radius:4px;background:rgba(255,255,255,0.10)"></div>
+  <div class="card yt" data-site="YouTube" data-url="youtube.com">
+    <div class="preview">
+      <div class="yt-hd"><span class="yt-logo"><span>&#9654;</span> YouTube</span><div class="yt-search"></div></div>
+      <div class="yt-grid">
+        <div class="yt-vid"><div class="yt-th" style="background:linear-gradient(135deg,#1a472a,#2d6a4f)"><span class="yt-dur">12:34</span></div><div class="yt-ti">How to Build a PC in 2035</div><div class="yt-ch">Linus Tech &bull; 2.1M</div></div>
+        <div class="yt-vid"><div class="yt-th" style="background:linear-gradient(135deg,#3a0ca3,#7209b7)"><span class="yt-dur">8:21</span></div><div class="yt-ti">AI Music Generation</div><div class="yt-ch">Vox &bull; 890K</div></div>
+        <div class="yt-vid"><div class="yt-th" style="background:linear-gradient(135deg,#d00000,#e85d04)"><span class="yt-dur">22:05</span></div><div class="yt-ti">F1 Monaco GP Highlights</div><div class="yt-ch">F1 &bull; 5.4M</div></div>
+        <div class="yt-vid"><div class="yt-th" style="background:linear-gradient(135deg,#023e8a,#0077b6)"><span class="yt-dur">15:42</span></div><div class="yt-ti">Deep Ocean Documentary</div><div class="yt-ch">BBC Earth &bull; 3.2M</div></div>
+        <div class="yt-vid"><div class="yt-th" style="background:linear-gradient(135deg,#606c38,#283618)"><span class="yt-dur">6:18</span></div><div class="yt-ti">Perfect Pasta Every Time</div><div class="yt-ch">BA &bull; 1.1M</div></div>
+        <div class="yt-vid"><div class="yt-th" style="background:linear-gradient(135deg,#774936,#a68a64)"><span class="yt-dur">31:10</span></div><div class="yt-ti">Jazz Lofi Study Beats</div><div class="yt-ch">ChilledCow &bull; 12M</div></div>
       </div>
     </div>
-    <div class="card-meta">
-      <div class="card-favicon" style="background:${site.color};border:1px solid rgba(0,0,0,0.08)">
-        <div style="width:100%;height:100%;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${luminance(site.color)>.5?'#1C1C1E':'#FFF'}">${site.title[0]}</div>
-      </div>
-      <span class="card-title">${site.title}</span>
-    </div>`;
-  card.addEventListener('click', () => openFullView(site));
-  constellationEl.appendChild(card);
-  cards.push({ el: card, glow, site, index: i });
-});
+    <div class="meta"><div class="fav" style="background:#f00"></div><span class="ttl">YouTube</span><button class="close-x">&times;</button></div>
+  </div>
 
-function luminance(hex) {
-  const c = hex.replace('#','');
-  const r = parseInt(c.substr(0,2),16)/255;
-  const g = parseInt(c.substr(2,2),16)/255;
-  const b = parseInt(c.substr(4,2),16)/255;
-  return 0.299*r + 0.587*g + 0.114*b;
-}
+  <div class="card wiki" data-site="Wikipedia" data-url="en.wikipedia.org">
+    <div class="preview">
+      <div class="wk-hd"><span>Article</span><span>Talk</span><span>Read</span><span>Edit</span></div>
+      <div class="wk-body"><div class="wk-art"><div class="wk-h1">Chromium (web browser)</div><div class="wk-p">Chromium is a free and open-source web browser project, principally developed and maintained by Google. The codebase is widely used. Microsoft Edge, Samsung Internet, Opera, and many other browsers are based on Chromium code.</div></div><div class="wk-img"><span>&#127760;</span></div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#fff;border:1px solid #ccc"></div><span class="ttl">Wikipedia</span><button class="close-x">&times;</button></div>
+  </div>
 
-// ── Position cards in elliptical arc ──
-let orbitOffset = 0;
-function layoutCards(t) {
-  const cx = 0, cy = 0;
-  cards.forEach(({ el, glow, index }) => {
-    const angle = (index - 3.5) * 0.55 + orbitOffset;
-    const x = cx + Math.cos(angle) * ARC_RADIUS - CARD_W / 2;
-    const y = cy + Math.sin(angle * 0.4) * 80 - CARD_H / 2;
-    const breath = Math.sin((t || 0) / 900 + index) * 6;
-    const tilt = angle * 0.25;
+  <div class="card amz" data-site="Amazon — AirPods Pro" data-url="amazon.com">
+    <div class="preview">
+      <div class="az-hd"><span class="az-logo"><span>&#9654;</span> amazon</span><div class="az-sr"></div><span class="az-cart">&#128722;</span></div>
+      <div class="az-body"><div class="az-img">&#127911;</div><div class="az-info"><div class="az-ti">Apple AirPods Pro (2nd Gen) with USB-C MagSafe Case</div><div class="az-stars">&#9733;&#9733;&#9733;&#9733;&#9734; 47,832</div><div class="az-price"><span>$</span>189<span>99</span></div><div class="az-buy">Add to Cart</div></div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#f90"></div><span class="ttl">Amazon &mdash; AirPods</span><button class="close-x">&times;</button></div>
+  </div>
 
-    el.style.left = `${x}px`;
-    el.style.top = `${y + breath}px`;
-    el.style.transform = `perspective(800px) rotateY(${tilt * (180/Math.PI)}deg)`;
-    el.style.zIndex = Math.round(10 + Math.cos(angle) * 5);
+  <div class="card delta" data-site="Delta Air Lines" data-url="delta.com">
+    <div class="preview">
+      <div class="dl-hd"><span class="dl-logo"><span>&#9650;</span> DELTA</span></div>
+      <div class="dl-hero"><span>BOOK A TRIP</span></div>
+      <div class="dl-form"><div class="dl-row"><div class="dl-field">From: ATL</div><div class="dl-field">To: LAX</div></div><div class="dl-row"><div class="dl-field">Jun 15</div><div class="dl-field">Jun 22</div><div class="dl-go">SEARCH</div></div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#003a70"></div><span class="ttl">Delta Air Lines</span><button class="close-x">&times;</button></div>
+  </div>
 
-    glow.style.left = `${x - 25}px`;
-    glow.style.top = `${y + breath - 25}px`;
-  });
+  <div class="card gmail" data-site="Gmail" data-url="mail.google.com">
+    <div class="preview">
+      <div class="gm-hd"><span class="gm-logo"><span>M</span> Gmail</span><div class="gm-sr"></div></div>
+      <div class="gm-body"><div class="gm-side"><div class="gm-compose">Compose</div><div class="gm-nav"><div class="active">Inbox</div><div>Starred</div><div>Sent</div></div></div><div class="gm-list">
+        <div class="gm-row"><span class="gm-from">GitHub</span><span class="gm-subj">[ungoogled-chromium] Build succeeded</span><span class="gm-date">10:42</span></div>
+        <div class="gm-row"><span class="gm-from">Alice Chen</span><span class="gm-subj">Re: Design review - looks great!</span><span class="gm-date">9:15</span></div>
+        <div class="gm-row"><span class="gm-from">Figma</span><span class="gm-subj">New comment on Aether v3</span><span class="gm-date">8:30</span></div>
+        <div class="gm-row"><span class="gm-from">Delta</span><span class="gm-subj">Flight ATL-LAX confirmed</span><span class="gm-date">Yest</span></div>
+        <div class="gm-row"><span class="gm-from">Amazon</span><span class="gm-subj">AirPods Pro shipped!</span><span class="gm-date">Yest</span></div>
+        <div class="gm-row"><span class="gm-from">Nordstrom</span><span class="gm-subj">Order ready for pickup</span><span class="gm-date">Jul 31</span></div>
+      </div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#ea4335"></div><span class="ttl">Gmail</span><button class="close-x">&times;</button></div>
+  </div>
 
-  // Update strands
-  updateStrands();
-}
+  <div class="card nord" data-site="Nordstrom — FRAME Jeans" data-url="nordstrom.com">
+    <div class="preview">
+      <div class="nd-hd"><span class="nd-logo">Nordstrom</span></div>
+      <div class="nd-body"><div class="nd-img">&#128086;</div><div class="nd-info"><div class="nd-brand">FRAME</div><div class="nd-name">Le High Skinny Jeans</div><div class="nd-pr">$228.00</div><div class="nd-colors"><span style="background:#1a237e"></span><span style="background:#212121"></span><span style="background:#5d4e37"></span></div><div class="nd-btn">ADD TO BAG</div></div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#000"></div><span class="ttl">Nordstrom &mdash; Jeans</span><button class="close-x">&times;</button></div>
+  </div>
 
-function updateStrands() {
-  let svg = '';
-  for (let i = 0; i < cards.length - 1; i++) {
-    const a = cards[i].el.getBoundingClientRect();
-    const b = cards[i+1].el.getBoundingClientRect();
-    const ax = a.left + a.width/2, ay = a.top + a.height/2;
-    const bx = b.left + b.width/2, by = b.top + b.height/2;
-    svg += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"/>`;
-  }
-  strandsEl.innerHTML = svg;
-}
+  <div class="card apple" data-site="Apple" data-url="apple.com">
+    <div class="preview">
+      <div class="ap-nav"><span>&#63743;</span><span>Store</span><span>Mac</span><span>iPad</span><span>iPhone</span><span>Watch</span><span>Vision</span></div>
+      <div class="ap-hero"><h2>MacBook Air</h2><p>Strikingly thin. Impressively big.</p><div class="ap-product">&#128187;</div><div class="ap-links"><a>Learn more ></a><a>Buy ></a></div></div>
+    </div>
+    <div class="meta"><div class="fav" style="background:#f5f5f7;border:1px solid #ddd"></div><span class="ttl">Apple</span><button class="close-x">&times;</button></div>
+  </div>
 
-// ── Auto orbit ──
-let animFrame;
-function animate(t) {
-  orbitOffset += 0.0006;
-  layoutCards(t);
-  animFrame = requestAnimationFrame(animate);
-}
+</div>
+</div>
 
-// ── Intent detection: constellation ──
-const intentZone = document.getElementById('intent-zone');
-const contentEl = document.getElementById('content');
-let dwellTimer = null;
-let constellationVisible = false;
+<div id="fullview"><div id="fv-content"><div class="fv-inner"></div></div></div>
+<button id="theme-toggle" title="Toggle theme">&#9790;</button>
+<div id="info">Aether v1.3 &bull; Liquid Light &bull; cubic-bezier(0.23,1,0.32,1) &bull; 220ms bloom</div>
 
-intentZone.addEventListener('mouseenter', () => {
-  dwellTimer = setTimeout(() => {
-    showConstellation();
-  }, 200);
-});
-intentZone.addEventListener('mouseleave', () => {
-  clearTimeout(dwellTimer);
-});
+<script>
+const intentZone=document.getElementById('intent-zone'),constellation=document.getElementById('constellation'),toolbar=document.getElementById('toolbar'),content=document.getElementById('content'),fullview=document.getElementById('fullview'),omniInput=document.getElementById('omni-input');
+let conVis=false,fvVis=false,dwellT=null,isDark=false;
 
-document.addEventListener('mousemove', (e) => {
-  if (constellationVisible && e.clientY > window.innerHeight * 0.85) {
-    hideConstellation();
-  }
-});
+intentZone.addEventListener('mouseenter',()=>{dwellT=setTimeout(showUI,200)});
+intentZone.addEventListener('mouseleave',()=>clearTimeout(dwellT));
 
-function showConstellation() {
-  if (constellationVisible) return;
-  constellationVisible = true;
-  document.body.classList.add('ui-active');
-  constellationEl.classList.add('visible');
-  contentEl.classList.add('dimmed');
-  layoutCards(performance.now());
-  animFrame = requestAnimationFrame(animate);
-}
+function showUI(){if(conVis)return;conVis=true;constellation.classList.add('visible');toolbar.classList.add('visible');content.classList.add('dimmed')}
+function hideUI(){if(!conVis)return;conVis=false;constellation.classList.remove('visible');toolbar.classList.remove('visible');content.classList.remove('dimmed')}
 
-function hideConstellation() {
-  if (!constellationVisible) return;
-  constellationVisible = false;
-  document.body.classList.remove('ui-active');
-  constellationEl.classList.remove('visible');
-  contentEl.classList.remove('dimmed');
-  cancelAnimationFrame(animFrame);
-}
+document.querySelectorAll('.card').forEach(c=>{
+  c.addEventListener('click',e=>{
+    if(e.target.closest('.close-x'))return;
+    fvVis=true;
+    fullview.querySelector('.fv-inner').innerHTML='<div style="font-size:24px;font-weight:600;margin-bottom:8px">'+c.dataset.site+'</div><div style="font-size:13px;opacity:.6;margin-bottom:16px">'+c.dataset.url+'</div><div style="font-size:12px;opacity:.4">Page materializes with refractive dissolve...</div>';
+    fullview.classList.add('visible');toolbar.classList.add('visible');omniInput.value=c.dataset.url;hideUI()});
+  c.querySelector('.close-x').addEventListener('click',e=>{e.stopPropagation();c.style.display='none'})});
 
-// Click outside cards to dismiss
-document.addEventListener('click', (e) => {
-  if (constellationVisible && !e.target.closest('.tab-card')) {
-    hideConstellation();
-  }
-});
+constellation.addEventListener('click',e=>{if(!e.target.closest('.card'))hideUI()});
 
-// ── Omnibox ──
-const omnibox = document.getElementById('omnibox');
-const omniInput = document.getElementById('omni-input');
-let omniVisible = false;
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='l'){e.preventDefault();showUI();setTimeout(()=>omniInput.focus(),100)}
+  if(e.key==='Escape'){if(fvVis){fvVis=false;fullview.classList.remove('visible');omniInput.value=''}hideUI()}});
 
-document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
-    e.preventDefault();
-    toggleOmnibox();
-  }
-  if (e.key === 'Escape') {
-    if (omniVisible) toggleOmnibox(false);
-    if (constellationVisible) hideConstellation();
-    if (fullviewVisible) closeFullView();
-  }
-});
+omniInput.addEventListener('keydown',e=>{if(e.key==='Enter'){const v=omniInput.value.trim();if(v){content.querySelector('h1').textContent=v;content.querySelector('p').textContent='Content dissolved and rematerialized.'}hideUI();if(fvVis){fvVis=false;fullview.classList.remove('visible')}}});
 
-function toggleOmnibox(force) {
-  omniVisible = force !== undefined ? force : !omniVisible;
-  if (omniVisible) {
-    omnibox.classList.add('visible');
-    setTimeout(() => omniInput.focus(), 60);
-  } else {
-    omnibox.classList.remove('visible');
-    omniInput.blur();
-    omniInput.value = '';
-  }
-}
+document.getElementById('theme-toggle').addEventListener('click',()=>{isDark=!isDark;document.body.classList.toggle('dark',isDark);document.getElementById('theme-toggle').textContent=isDark?'☀':'☾'});
 
-omniInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const q = omniInput.value.trim();
-    if (q) {
-      contentEl.querySelector('h1').textContent = q;
-      contentEl.querySelector('p').textContent = 'Page dissolved with refractive trails... content materializes.';
-    }
-    toggleOmnibox(false);
-  }
-});
-
-// ── Full view ──
-const fullviewEl = document.getElementById('fullview');
-const fvTitle = document.getElementById('fv-title');
-const fvFrame = document.getElementById('fv-frame');
-const fvClose = document.getElementById('fv-close');
-let fullviewVisible = false;
-
-function openFullView(site) {
-  fullviewVisible = true;
-  fvTitle.textContent = site.title;
-  fvFrame.style.background = `linear-gradient(135deg, ${site.accent}, ${site.color})`;
-  fvFrame.innerHTML = `<div style="text-align:center;color:${luminance(site.color)>.5?'#1C1C1E':'#FFF'}">
-    <div style="font-size:28px;font-weight:600;margin-bottom:8px">${site.title}</div>
-    <div style="font-size:14px;opacity:0.7">${site.domain}</div>
-    <div style="margin-top:24px;font-size:13px;opacity:0.5">Live content would render here via tab texture capture</div>
-  </div>`;
-  fullviewEl.classList.add('visible');
-  hideConstellation();
-}
-function closeFullView() {
-  fullviewVisible = false;
-  fullviewEl.classList.remove('visible');
-}
-fvClose.addEventListener('click', closeFullView);
-
-// ── Theme toggle ──
-const themeBtn = document.getElementById('theme-toggle');
-let isDark = false;
-themeBtn.addEventListener('click', () => {
-  isDark = !isDark;
-  document.body.classList.toggle('dark', isDark);
-  themeBtn.textContent = isDark ? '☀' : '☾';
-});
-
-// ═══════════════════════════════════════════════════════════════
-// Liquid Light Canvas Shader (approximation of WGSL spec)
-// ═══════════════════════════════════════════════════════════════
-const canvas = document.getElementById('liquid-canvas');
-const ctx = canvas.getContext('2d');
-let W, H;
-
-function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener('resize', () => { resize(); layoutCards(performance.now()); });
-
-function drawLiquidLight(t) {
-  const s = t / 1000;
-  ctx.clearRect(0, 0, W, H);
-
-  // Breathing base glow (top center golden ether)
-  const breath = Math.sin(s * 0.8 * Math.PI * 2) * 0.08 + 1.0;
-  const baseAlpha = 0.06 * breath * (isDark ? 0.5 : 1);
-
-  const g1 = ctx.createRadialGradient(W * 0.5, H * 0.08, 0, W * 0.5, H * 0.08, W * 0.6);
-  g1.addColorStop(0, isDark ? `rgba(212,179,102,${baseAlpha * 2})` : `rgba(255,235,184,${baseAlpha * 2})`);
-  g1.addColorStop(0.5, isDark ? `rgba(201,161,79,${baseAlpha})` : `rgba(255,204,102,${baseAlpha})`);
-  g1.addColorStop(1, 'transparent');
-  ctx.fillStyle = g1;
-  ctx.fillRect(0, 0, W, H);
-
-  // Caustic ripples
-  const causticsIntensity = 0.18;
-  for (let i = 0; i < 5; i++) {
-    const cx = W * (0.2 + 0.15 * i + Math.sin(s * 0.3 + i) * 0.05);
-    const cy = H * (0.3 + Math.cos(s * 0.2 + i * 1.5) * 0.15);
-    const r = 80 + Math.sin(s + i * 2) * 30;
-    const a = causticsIntensity * 0.08 * breath;
-
-    const g2 = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g2.addColorStop(0, isDark ? `rgba(201,161,79,${a})` : `rgba(255,204,102,${a})`);
-    g2.addColorStop(1, 'transparent');
-    ctx.fillStyle = g2;
-    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-  }
-
-  // Subtle refraction bands
-  ctx.save();
-  ctx.globalAlpha = 0.015 * breath;
-  ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 3; i++) {
-    const y = H * (0.2 + i * 0.25) + Math.sin(s * 0.5 + i) * 40;
-    const grad = ctx.createLinearGradient(0, y - 60, 0, y + 60);
-    grad.addColorStop(0, 'transparent');
-    grad.addColorStop(0.5, isDark ? '#C9A14F' : '#FFCC66');
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, y - 60, W, 120);
-  }
-  ctx.restore();
-
-  // Edge breathing glow
-  const edgeAlpha = 0.02 * (Math.sin(s * 0.8 * Math.PI * 2) * 0.5 + 0.5);
-  const edgeGrad = ctx.createLinearGradient(0, 0, 0, 30);
-  edgeGrad.addColorStop(0, isDark ? `rgba(212,179,102,${edgeAlpha * 2})` : `rgba(255,235,184,${edgeAlpha * 2})`);
-  edgeGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = edgeGrad;
-  ctx.fillRect(0, 0, W, 30);
-
-  requestAnimationFrame(drawLiquidLight);
-}
-requestAnimationFrame(drawLiquidLight);
-
-// ── Initial card layout ──
-layoutCards(0);
+const cv=document.getElementById('lc'),cx=cv.getContext('2d');let W,H;
+function rs(){W=cv.width=innerWidth;H=cv.height=innerHeight}rs();addEventListener('resize',rs);
+function draw(t){const s=t/1000;cx.clearRect(0,0,W,H);const b=Math.sin(s*.8*6.283)*.08+1,a=.06*b*(isDark?.5:1);const g=cx.createRadialGradient(W*.5,H*.08,0,W*.5,H*.08,W*.6);g.addColorStop(0,isDark?'rgba(212,179,102,'+(a*2)+')':'rgba(255,235,184,'+(a*2)+')');g.addColorStop(1,'transparent');cx.fillStyle=g;cx.fillRect(0,0,W,H);for(let i=0;i<4;i++){const x=W*(.2+.2*i+Math.sin(s*.3+i)*.05),y=H*(.3+Math.cos(s*.2+i*1.5)*.15),r=60+Math.sin(s+i*2)*20;const g2=cx.createRadialGradient(x,y,0,x,y,r);g2.addColorStop(0,isDark?'rgba(201,161,79,'+(.012*b)+')':'rgba(255,204,102,'+(.012*b)+')');g2.addColorStop(1,'transparent');cx.fillStyle=g2;cx.fillRect(x-r,y-r,r*2,r*2)}requestAnimationFrame(draw)}
+requestAnimationFrame(draw);
 </script>
 </body>
 </html>
